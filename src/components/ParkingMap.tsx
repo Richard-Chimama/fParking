@@ -67,6 +67,7 @@ const ParkingMap: React.FC<ParkingMapProps> = ({
       initialRegion={initialRegion}
       showsUserLocation={showUserLocation}
       showsMyLocationButton={false}
+      showsCompass={false}
     >
       {/* Car marker */}
       {carMarkerCoordinate && (

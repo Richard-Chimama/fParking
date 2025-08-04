@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,32 +9,37 @@ import {
   Modal,
   Animated,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeProvider';
-import { ParkingSpot } from '../types';
+import { Parking } from '../types';
+import { useParkings } from '../hooks/useParkings';
 
 const { width } = Dimensions.get('window');
 
 interface SearchDrawerProps {
   visible: boolean;
   onClose: () => void;
-  parkingSpots: ParkingSpot[];
-  onSelectSpot: (spot: ParkingSpot) => void;
+  onSelectParking: (parking: Parking) => void;
 }
 
-const SearchDrawer: React.FC<SearchDrawerProps> = ({
+const SearchDrawer: React.FC<SearchDrawerProps> = React.memo(({
   visible,
   onClose,
-  parkingSpots,
-  onSelectSpot,
+  onSelectParking,
 }) => {
   const theme = useTheme();
-  const [searchQuery, setSearchQuery] = useState('');
+  const { parkings, loading: parkingsLoading, error: parkingsError } = useParkings();
+  
+  // Local state for search functionality
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [slideAnim] = useState(new Animated.Value(-width * 0.8));
-
-  React.useEffect(() => {
+  
+  // Animation effect
+  useEffect(() => {
     if (visible) {
+      setLocalSearchQuery(''); // Reset search when drawer opens
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 300,
@@ -47,15 +52,39 @@ const SearchDrawer: React.FC<SearchDrawerProps> = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, slideAnim]);
 
-  const filteredSpots = parkingSpots.filter(
-    (spot) =>
-      spot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      spot.address.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter parkings based on search query
+  const filteredParkings = useMemo(() => {
+    if (!localSearchQuery.trim() || !parkings) {
+      return parkings || [];
+    }
+    
+    const query = localSearchQuery.toLowerCase();
+    return parkings.filter(parking => 
+      parking.name.toLowerCase().includes(query) ||
+      parking.address.street.toLowerCase().includes(query) ||
+      parking.address.city.toLowerCase().includes(query)
+    );
+  }, [parkings, localSearchQuery]);
+
+  const handleSearchChange = useCallback((text: string) => {
+    setLocalSearchQuery(text);
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setLocalSearchQuery('');
+  }, []);
+
+  const handleSelectParking = useCallback((parking: Parking) => {
+    onSelectParking(parking);
+  }, [onSelectParking]);
 
   const styles = createStyles(theme);
+
+  if (!visible) {
+    return null;
+  }
 
   return (
     <Modal
@@ -65,7 +94,11 @@ const SearchDrawer: React.FC<SearchDrawerProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} />
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={onClose}
+        />
         <Animated.View
           style={[
             styles.drawer,
@@ -77,12 +110,12 @@ const SearchDrawer: React.FC<SearchDrawerProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Search Parking</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
 
-          {/* Search Bar */}
+          {/* Search Input */}
           <View style={styles.searchContainer}>
             <Ionicons
               name="search"
@@ -92,73 +125,73 @@ const SearchDrawer: React.FC<SearchDrawerProps> = ({
             />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search parking spots..."
+              placeholder="Search by name or address..."
               placeholderTextColor={theme.colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
+              value={localSearchQuery}
+              onChangeText={handleSearchChange}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                style={styles.clearButton}
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
+            {localSearchQuery.length > 0 && (
+              <TouchableOpacity style={styles.clearButton} onPress={handleClearSearch}>
+                <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
 
           {/* Results */}
           <ScrollView style={styles.resultsContainer}>
-            {filteredSpots.length > 0 ? (
-              filteredSpots.map((spot) => (
+            {parkingsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={styles.loadingText}>Loading parking spots...</Text>
+              </View>
+            ) : parkingsError ? (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle" size={48} color={theme.colors.error || '#ff4444'} />
+                <Text style={styles.errorText}>Failed to load parking spots</Text>
+                <Text style={styles.errorSubtext}>Please check your connection and try again</Text>
+              </View>
+            ) : filteredParkings.length === 0 ? (
+              <View style={styles.noResults}>
+                <Ionicons name="search" size={48} color={theme.colors.textSecondary} />
+                <Text style={styles.noResultsText}>
+                  {localSearchQuery ? 'No parking spots found' : 'Start typing to search'}
+                </Text>
+                <Text style={styles.noResultsSubtext}>
+                  {localSearchQuery ? 'Try a different search term' : 'Search by name or address'}
+                </Text>
+              </View>
+            ) : (
+              filteredParkings.map((parking) => (
                 <TouchableOpacity
-                  key={spot.id}
+                  key={parking.id}
                   style={styles.spotItem}
-                  onPress={() => {
-                    onSelectSpot(spot);
-                    onClose();
-                  }}
+                  onPress={() => handleSelectParking(parking)}
                 >
                   <View style={styles.spotIcon}>
                     <Ionicons name="car" size={20} color="white" />
                   </View>
                   <View style={styles.spotInfo}>
-                    <Text style={styles.spotName}>{spot.name}</Text>
-                    <Text style={styles.spotAddress}>{spot.address}</Text>
-                    <Text style={styles.spotPrice}>${spot.pricePerHour}/hr</Text>
+                    <Text style={styles.spotName}>{parking.name}</Text>
+                    <Text style={styles.spotAddress}>
+                      {parking.address.street}, {parking.address.city}
+                    </Text>
+                    <View style={styles.spotDetails}>
+                      <Text style={styles.spotSpaces}>
+                        {parking.availableSpaces}/{parking.totalSpaces} spots available
+                      </Text>
+                    </View>
                   </View>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={theme.colors.textSecondary}
-                  />
                 </TouchableOpacity>
               ))
-            ) : (
-              <View style={styles.noResults}>
-                <Ionicons
-                  name="search"
-                  size={48}
-                  color={theme.colors.textSecondary}
-                />
-                <Text style={styles.noResultsText}>
-                  {searchQuery
-                    ? 'No parking spots found'
-                    : 'Start typing to search parking spots'}
-                </Text>
-              </View>
             )}
           </ScrollView>
         </Animated.View>
       </View>
     </Modal>
   );
-};
+});
 
 const createStyles = (theme: any) =>
   StyleSheet.create({
@@ -259,11 +292,6 @@ const createStyles = (theme: any) =>
       color: theme.colors.textSecondary,
       marginBottom: theme.spacing.xs,
     },
-    spotPrice: {
-      fontSize: theme.typography.sizes.sm,
-      color: theme.colors.primary,
-      fontWeight: theme.typography.weights.semibold,
-    },
     noResults: {
       flex: 1,
       justifyContent: 'center',
@@ -275,6 +303,50 @@ const createStyles = (theme: any) =>
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginTop: theme.spacing.md,
+    },
+    noResultsSubtext: {
+      fontSize: theme.typography.sizes.sm,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      marginTop: theme.spacing.xs,
+      opacity: 0.7,
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.xl * 2,
+    },
+    loadingText: {
+      fontSize: theme.typography.sizes.md,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.md,
+    },
+    errorContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.xl * 2,
+    },
+    errorText: {
+      fontSize: theme.typography.sizes.md,
+      color: theme.colors.error || '#ff4444',
+      marginTop: theme.spacing.md,
+      textAlign: 'center',
+      fontWeight: theme.typography.weights.semibold,
+    },
+    errorSubtext: {
+      fontSize: theme.typography.sizes.sm,
+      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.xs,
+      textAlign: 'center',
+    },
+    spotDetails: {
+      flexDirection: 'column',
+    },
+    spotSpaces: {
+      fontSize: theme.typography.sizes.sm,
+      fontWeight: theme.typography.weights.medium,
+      color: theme.colors.primary,
+      marginBottom: theme.spacing.xs,
     },
   });
 

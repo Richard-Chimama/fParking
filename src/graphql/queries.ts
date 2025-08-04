@@ -15,56 +15,82 @@ export const GET_USER_PROFILE = gql`
   }
 `;
 
-// Parking Spot Queries
-export const GET_PARKING_SPOTS = gql`
-  query GetParkingSpots($latitude: Float!, $longitude: Float!, $radius: Float!) {
-    parkingSpots(latitude: $latitude, longitude: $longitude, radius: $radius) {
+// Main Parking Queries (New Schema)
+export const GET_ALL_PARKINGS = gql`
+  query GetAllParkings {
+    parkings {
       id
       name
-      address
-      latitude
-      longitude
-      pricePerHour
-      isAvailable
-      totalSpots
-      availableSpots
-      rating
-      features {
-        id
-        name
-        icon
+      description
+      totalSpaces
+      availableSpaces
+      coordinates
+      address {
+        street
+        city
+        state
+        zipCode
+        country
       }
-      images
     }
   }
 `;
 
-export const GET_PARKING_SPOT_DETAILS = gql`
-  query GetParkingSpotDetails($spotId: ID!) {
-    parkingSpot(id: $spotId) {
+export const GET_PARKING_BY_ID = gql`
+  query GetParkingById($id: ID!) {
+    parking(id: $id) {
       id
       name
-      address
-      latitude
-      longitude
-      pricePerHour
-      isAvailable
-      totalSpots
-      availableSpots
-      rating
-      features {
-        id
-        name
-        icon
+      description
+      totalSpaces
+      availableSpaces
+      coordinates
+      address {
+        street
+        city
+        state
+        zipCode
+        country
       }
-      images
-      reviews {
-        id
-        userId
-        userName
-        rating
-        comment
-        createdAt
+    }
+  }
+`;
+
+export const GET_NEARBY_PARKINGS = gql`
+  query GetNearbyParkings($maxDistance: Float!, $longitude: Float!, $latitude: Float!) {
+    nearbyParkings(maxDistance: $maxDistance, longitude: $longitude, latitude: $latitude) {
+      id
+      name
+      description
+      totalSpaces
+      availableSpaces
+      coordinates
+      address {
+        street
+        city
+        state
+        zipCode
+        country
+      }
+    }
+  }
+`;
+
+export const GET_PARKINGS_BY_CITY = gql`
+  query GetParkingsByCity($city: String!) {
+    parkingsByCity(city: $city) {
+      id
+      name
+      description
+      totalSpaces
+      availableSpaces
+      coordinates
+      address {
+        street
+        city
+        state
+        zipCode
+        country
       }
     }
   }
@@ -139,38 +165,28 @@ export const GET_USER_VEHICLES = gql`
   }
 `;
 
-// Search Queries
-export const SEARCH_PARKING_SPOTS = gql`
-  query SearchParkingSpots(
+// Search Queries (Updated for new schema)
+export const SEARCH_PARKINGS = gql`
+  query SearchParkings(
     $query: String!
     $latitude: Float
     $longitude: Float
-    $maxPrice: Float
-    $features: [String!]
+    $city: String
   ) {
-    searchParkingSpots(
-      query: $query
-      latitude: $latitude
-      longitude: $longitude
-      maxPrice: $maxPrice
-      features: $features
-    ) {
+    parkings {
       id
       name
-      address
-      latitude
-      longitude
-      pricePerHour
-      isAvailable
-      totalSpots
-      availableSpots
-      rating
-      features {
-        id
-        name
-        icon
+      description
+      totalSpaces
+      availableSpaces
+      coordinates
+      address {
+        street
+        city
+        state
+        zipCode
+        country
       }
-      images
     }
   }
 `;

@@ -93,6 +93,33 @@ export interface LocationWithAddress extends Location {
   zipCode: string;
 }
 
+// New Parking Schema Types
+export interface ParkingAddress {
+  street: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  country: string;
+}
+
+export interface Parking {
+  id: string;
+  name: string;
+  description: string;
+  totalSpaces: number;
+  availableSpaces: number;
+  coordinates: string; // Could be "lat,lng" format or GeoJSON
+  address: ParkingAddress;
+}
+
+// Query response types for the new parking schema
+export interface ParkingsQueryResponse {
+  parkings: Parking[];
+  parking: Parking | null;
+  nearbyParkings: Parking[];
+  parkingsByCity: Parking[];
+}
+
 // API Response types
 export interface ApiResponse<T> {
   success: boolean;
