@@ -1,0 +1,26 @@
+{
+  "development": {
+    "graphqlEndpoint": "https://your-dev-graphql-api.com/graphql",
+    "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE",
+    "stripePublishableKey": "pk_test_YOUR_STRIPE_PUBLISHABLE_KEY_HERE",
+    "oneSignalAppId": "YOUR_ONESIGNAL_APP_ID_HERE",
+    "sentryDsn": "YOUR_SENTRY_DSN_HERE",
+    "amplitudeApiKey": "YOUR_AMPLITUDE_API_KEY_HERE"
+  },
+  "production": {
+    "graphqlEndpoint": "https://your-prod-graphql-api.com/graphql",
+    "googleMapsApiKey": "YOUR_PROD_GOOGLE_MAPS_API_KEY_HERE",
+    "stripePublishableKey": "pk_live_YOUR_STRIPE_PUBLISHABLE_KEY_HERE",
+    "oneSignalAppId": "YOUR_PROD_ONESIGNAL_APP_ID_HERE",
+    "sentryDsn": "YOUR_PROD_SENTRY_DSN_HERE",
+    "amplitudeApiKey": "YOUR_PROD_AMPLITUDE_API_KEY_HERE"
+  },
+  "staging": {
+    "graphqlEndpoint": "https://your-staging-graphql-api.com/graphql",
+    "googleMapsApiKey": "YOUR_STAGING_GOOGLE_MAPS_API_KEY_HERE",
+    "stripePublishableKey": "pk_test_YOUR_STAGING_STRIPE_PUBLISHABLE_KEY_HERE",
+    "oneSignalAppId": "YOUR_STAGING_ONESIGNAL_APP_ID_HERE",
+    "sentryDsn": "YOUR_STAGING_SENTRY_DSN_HERE",
+    "amplitudeApiKey": "YOUR_STAGING_AMPLITUDE_API_KEY_HERE"
+  }
+}
