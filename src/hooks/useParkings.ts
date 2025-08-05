@@ -203,13 +203,28 @@ export const useParkingCache = () => {
 };
 
 // Utility function to parse coordinates string to lat/lng
-export const parseCoordinates = (coordinates: string): { latitude: number; longitude: number } | null => {
+export const parseCoordinates = (coordinates: string | number[] | undefined): { latitude: number; longitude: number } | null => {
   try {
-    // Assuming coordinates are in "lat,lng" format
-    const [lat, lng] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+    if (!coordinates) {
+      console.warn('Coordinates are undefined or null');
+      return null;
+    }
+
+    let lat: number, lng: number;
+
+    if (Array.isArray(coordinates)) {
+      // Handle number array format [lat, lng]
+      [lat, lng] = coordinates;
+    } else if (typeof coordinates === 'string') {
+      // Handle string format "lat,lng"
+      [lat, lng] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+    } else {
+      console.warn('Invalid coordinates format:', coordinates);
+      return null;
+    }
     
     if (isNaN(lat) || isNaN(lng)) {
-      console.warn('Invalid coordinates format:', coordinates);
+      console.warn('Invalid coordinates values:', { lat, lng });
       return null;
     }
     

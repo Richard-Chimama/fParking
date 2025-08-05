@@ -21,6 +21,7 @@ import { ParkingSpot, Parking } from '../types';
 import ParkingMap from '../components/ParkingMap';
 import SearchDrawer from '../components/SearchDrawer';
 import CompassIndicator from '../components/CompassIndicator';
+import { useParkings } from '../hooks/useParkings';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,50 +36,18 @@ const MapScreen: React.FC = () => {
   const [selectedArea, setSelectedArea] = useState<string>('Välj område');
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   
+  // Map reference for controlling map view
+  const mapRef = useRef<any>(null);
+  
+  // Get parking data from database
+  const { parkings, loading: parkingsLoading } = useParkings();
+  
   // Bottom sheet animation values
   const bottomSheetHeight = useRef(new Animated.Value(height * 0.4)).current;
   const minHeight = height * 0.2;
   const maxHeight = height * 0.75;
   const defaultHeight = height * 0.4;
-  const [parkingSpots] = useState<ParkingSpot[]>([
-    {
-      id: '186',
-      name: 'Hagholmen',
-      address: 'Markparkering • Stockholms Stads Parkering',
-      latitude: 59.3293,
-      longitude: 18.0686,
-      pricePerHour: 25.00,
-      isAvailable: true,
-      totalSpots: 50,
-      availableSpots: 12,
-      features: [],
-      images: [],
-      rating: 4.5,
-      reviews: [],
-    },
-    {
-      id: '188',
-      name: 'Eldholmen',
-      address: 'Markparkering • Stockholms Stads Parkering',
-      latitude: 59.3193,
-      longitude: 18.0586,
-      pricePerHour: 30.00,
-      isAvailable: true,
-      totalSpots: 100,
-      availableSpots: 25,
-      features: [],
-      images: [],
-      rating: 4.2,
-      reviews: [],
-    },
-  ]);
-
-  const parkingAreas = [
-    { id: '186', name: 'Hagholmen', spots: 186 },
-    { id: '188', name: 'Eldholmen', spots: 188 },
-    { id: '150', name: 'Portholmsgången', spots: 150 },
-    { id: '120', name: 'Värbergsgången', spots: 120 },
-  ];
+  // Parking data is now handled by the database via ParkingMap component
 
   useEffect(() => {
     getCurrentLocation();
@@ -178,16 +147,6 @@ const MapScreen: React.FC = () => {
     }
   };
 
-  const closeBottomSheet = () => {
-    Animated.timing(bottomSheetHeight, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: false,
-    }).start(() => {
-      setShowBottomSheet(false);
-      setShowLocationSheet(true);
-    });
-  };
 
   const requestLocationPermission = async () => {
     await getCurrentLocation();
@@ -205,13 +164,46 @@ const MapScreen: React.FC = () => {
     }
   };
 
-  const handleMarkerPress = (spot: ParkingSpot) => {
+  const handleMarkerPress = (spot: ParkingSpot | Parking) => {
+    // Convert Parking to ParkingSpot format if needed
+    let parkingSpot: ParkingSpot;
+    if ('coordinates' in spot) {
+      // This is a Parking object from database
+      let coords: number[];
+      if (Array.isArray(spot.coordinates)) {
+        coords = spot.coordinates;
+      } else if (typeof spot.coordinates === 'string') {
+        coords = spot.coordinates.split(',').map(c => parseFloat(c.trim()));
+      } else {
+        coords = [-15.3875, 28.3228]; // Fallback to Lusaka
+      }
+      
+      parkingSpot = {
+        id: spot.id,
+        name: spot.name,
+        address: `${spot.address.street}, ${spot.address.city}, ${spot.address.state}`,
+        latitude: coords[0] || -15.3875,
+        longitude: coords[1] || 28.3228,
+        pricePerHour: 0,
+        isAvailable: spot.availableSpaces > 0,
+        totalSpots: spot.totalSpaces,
+        availableSpots: spot.availableSpaces,
+        features: [],
+        images: [],
+        rating: 0,
+        reviews: [],
+      };
+    } else {
+      // This is already a ParkingSpot object
+      parkingSpot = spot;
+    }
+    
     Alert.alert(
-      spot.name,
-      `${spot.address}\n$${spot.pricePerHour}/hour\n${spot.availableSpots} spots available`,
+      parkingSpot.name,
+      `${parkingSpot.address}\n$${parkingSpot.pricePerHour}/hour\n${parkingSpot.availableSpots} spots available`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Book Now', onPress: () => console.log('Book spot:', spot.id) },
+        { text: 'Book Now', onPress: () => console.log('Book spot:', parkingSpot.id) },
       ]
     );
   };
@@ -222,8 +214,15 @@ const MapScreen: React.FC = () => {
   };
 
   const handleSelectParking = (parking: Parking) => {
-    // Parse coordinates string (assuming "lat,lng" format)
-    const [lat, lng] = parking.coordinates.split(',').map(coord => parseFloat(coord.trim()));
+    // Parse coordinates handling both string and array formats
+    let lat: number, lng: number;
+    if (Array.isArray(parking.coordinates)) {
+      [lat, lng] = parking.coordinates;
+    } else if (typeof parking.coordinates === 'string') {
+      [lat, lng] = parking.coordinates.split(',').map((coord: string) => parseFloat(coord.trim()));
+    } else {
+      [lat, lng] = [-15.3875, 28.3228]; // Fallback to Lusaka
+    }
     
     // Convert Parking to ParkingSpot format for map compatibility
     const parkingSpot: ParkingSpot = {
@@ -244,14 +243,21 @@ const MapScreen: React.FC = () => {
     
     // Focus on the selected parking spot on the map
     handleMarkerPress(parkingSpot);
-    setShowSearchDrawer(false);
   };
 
-  const initialRegion = {
-    latitude: location?.coords.latitude || 59.3293,
-    longitude: location?.coords.longitude || 18.0686,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
+  // Note: Map region is now handled by ParkingMap component (focused on Zambia)
+  
+  // Recenter map to Zambia when compass is clicked
+  const handleCompassPress = () => {
+    if (mapRef.current) {
+      const zambiaRegion = {
+        latitude: -15.3875,
+        longitude: 28.3228,
+        latitudeDelta: 8.0,
+        longitudeDelta: 8.0,
+      };
+      mapRef.current.animateToRegion(zambiaRegion, 1000);
+    }
   };
 
   const createStyles = (theme: any) => StyleSheet.create({
@@ -468,14 +474,14 @@ const MapScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Map */}
       <ParkingMap
-        initialRegion={initialRegion}
-        parkingSpots={parkingSpots}
+        mapRef={mapRef}
         onMarkerPress={handleMarkerPress}
         showUserLocation={true}
-        carMarkerCoordinate={{
-          latitude: 59.3243,
-          longitude: 18.0636,
-        }}
+        useDatabase={true}
+        carMarkerCoordinate={location ? {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        } : undefined}
       />
 
       {/* Search Button */}
@@ -513,7 +519,7 @@ const MapScreen: React.FC = () => {
 
       {/* Compass Indicator */}
       <View style={styles.compassContainer}>
-        <CompassIndicator size={50} rotation={0} />
+        <CompassIndicator size={50} rotation={0} onPress={handleCompassPress} />
       </View>
 
       {/* Location Button */}
@@ -531,30 +537,34 @@ const MapScreen: React.FC = () => {
        
             <View style={styles.handle} />
             
-            <Text style={styles.bottomSheetTitle}>Välj område</Text>
+            <Text style={styles.bottomSheetTitle}>Select area</Text>
             
             <View style={styles.bottomSheetSubtitle}>
-              <Text>Din GPS-position kan vara osäker </Text>
+              <Text>Your GPS-position can be uncertain </Text>
               <Ionicons name="help-circle-outline" size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-              {parkingAreas.map((area) => (
-                <TouchableOpacity key={area.id} style={styles.parkingItem}>
-                  <View style={styles.parkingIcon}>
-                    <Text style={styles.parkingNumber}>{area.spots}</Text>
-                  </View>
-                  
-                  <View style={styles.parkingInfo}>
-                    <Text style={styles.parkingName}>{area.name}</Text>
-                    <Text style={styles.parkingAddress}>Markparkering • Stockholms Stads Parkering</Text>
-                  </View>
-                  
-                  <TouchableOpacity style={styles.infoButton}>
-                    <Ionicons name="information" size={12} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
+              {parkingsLoading ? (
+                 <Text style={styles.parkingName}>Loading parking areas...</Text>
+               ) : (
+                 parkings.map((parking) => (
+                   <TouchableOpacity key={parking.id} style={styles.parkingItem} onPress={() => handleSelectParking(parking)}>
+                     <View style={styles.parkingIcon}>
+                       <Text style={styles.parkingNumber}>{parking.availableSpaces}</Text>
+                     </View>
+                     
+                     <View style={styles.parkingInfo}>
+                       <Text style={styles.parkingName}>{parking.name}</Text>
+                       <Text style={styles.parkingAddress}>{parking.address.street}, {parking.address.city}</Text>
+                     </View>
+                     
+                     <TouchableOpacity style={styles.infoButton}>
+                       <Ionicons name="information" size={12} color={theme.colors.textSecondary} />
+                     </TouchableOpacity>
+                   </TouchableOpacity>
+                 ))
+               )}
             </ScrollView>
           </Animated.View>
         </PanGestureHandler>

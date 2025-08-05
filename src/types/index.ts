@@ -108,7 +108,7 @@ export interface Parking {
   description: string;
   totalSpaces: number;
   availableSpaces: number;
-  coordinates: string; // Could be "lat,lng" format or GeoJSON
+  coordinates: string | number[]; // Could be "lat,lng" format, GeoJSON, or [lat, lng] array
   address: ParkingAddress;
 }
 
