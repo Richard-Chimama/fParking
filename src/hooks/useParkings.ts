@@ -79,10 +79,7 @@ export const useNearbyParkings = () => {
     latitude: number,
     longitude: number,
     maxDistance: number = 5000 // Default 5km radius
-  ) => {
-    // Create a cache key based on location and distance
-    const cacheKey = `nearby-${latitude.toFixed(4)}-${longitude.toFixed(4)}-${maxDistance}`;
-    
+  ) => {    
     // Check if we have recent cached data
     const cachedData = client.cache.readQuery({
       query: GET_NEARBY_PARKINGS,
@@ -213,11 +210,11 @@ export const parseCoordinates = (coordinates: string | number[] | undefined): { 
     let lat: number, lng: number;
 
     if (Array.isArray(coordinates)) {
-      // Handle number array format [lat, lng]
-      [lat, lng] = coordinates;
+      // Handle number array format [lng, lat] - GeoJSON standard
+      [lng, lat] = coordinates;
     } else if (typeof coordinates === 'string') {
-      // Handle string format "lat,lng"
-      [lat, lng] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+      // Handle string format "lng,lat" - GeoJSON standard
+      [lng, lat] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
     } else {
       console.warn('Invalid coordinates format:', coordinates);
       return null;

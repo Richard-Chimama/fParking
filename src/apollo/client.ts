@@ -9,14 +9,14 @@ const httpLink = createHttpLink({
 });
 
 // Auth link for adding authorization headers
-const authLink = setContext((_, { headers }) => {
+const authLink = setContext(async (_, { headers }) => {
   // Get the authentication token from local storage if it exists
-  // const token = await AsyncStorage.getItem('token');
+  const token = await AsyncStorage.getItem('authToken');
   
   return {
     headers: {
       ...headers,
-      // authorization: token ? `Bearer ${token}` : "",
+      authorization: token ? `Bearer ${token}` : "",
     }
   };
 });

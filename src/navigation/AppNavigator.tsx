@@ -121,6 +121,7 @@ const AppNavigator: React.FC = () => {
               ),
             }}
           />
+
         </Drawer.Navigator>
       )}
     </NavigationContainer>

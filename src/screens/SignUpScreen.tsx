@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@apollo/client';
-import { REGISTER_WITH_VARIABLES } from '../graphql/mutations';
+import { REGISTER_WITH_VARIABLES, SEND_OTP } from '../graphql/mutations';
 import { useTheme } from '../theme/ThemeProvider';
 
 interface SignUpScreenProps {
@@ -34,19 +34,18 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
   const [registerMutation] = useMutation(REGISTER_WITH_VARIABLES, {
     onCompleted: (data) => {
-      setIsLoading(false);
       if (data.register.success) {
-        Alert.alert(
-          'Success',
-          'Account created successfully! Please sign in.',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('SignIn'),
+        // After successful registration, send OTP
+        sendOTPMutation({
+          variables: {
+            input: {
+              phoneNumber: phoneNumber.trim(),
+              purpose: 'PHONE_VERIFICATION',
             },
-          ]
-        );
+          },
+        });
       } else {
+        setIsLoading(false);
         Alert.alert('Error', data.register.message || 'Registration failed');
       }
     },
@@ -55,6 +54,34 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
       Alert.alert('Error', error.message || 'Registration failed');
     },
   });
+
+  const [sendOTPMutation] = useMutation(SEND_OTP, {
+    onCompleted: (data) => {
+      setIsLoading(false);
+      if (data.sendOTP.success) {
+        Alert.alert(
+          'Account Created!',
+          'Please verify your phone number to complete registration.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('OTPVerification', {
+                phoneNumber: phoneNumber.trim(),
+                otpId: data.sendOTP.otpId,
+                fromSignup: true,
+              }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Error', data.sendOTP.message || 'Failed to send OTP');
+      }
+    },
+    onError: (error) => {
+       setIsLoading(false);
+       Alert.alert('Error', error.message || 'Failed to send OTP');
+     },
+   });
 
   const validateForm = () => {
     if (!firstName.trim()) {

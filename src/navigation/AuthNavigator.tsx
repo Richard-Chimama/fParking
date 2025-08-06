@@ -2,11 +2,17 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import SignInScreen from '../screens/SignInScreen';
 import SignUpScreen from '../screens/SignUpScreen';
+import OTPVerificationScreen from '../screens/OTPVerificationScreen';
 import { useTheme } from '../theme/ThemeProvider';
 
 export type AuthStackParamList = {
   SignIn: undefined;
   SignUp: undefined;
+  OTPVerification: {
+    phoneNumber: string;
+    otpId?: string;
+    fromSignup?: boolean;
+  };
 };
 
 const Stack = createStackNavigator<AuthStackParamList>();
@@ -28,7 +34,6 @@ const AuthNavigator: React.FC = () => {
           fontWeight: theme.typography.weights.bold,
           fontSize: theme.typography.sizes.lg,
         },
-        headerBackTitleVisible: false,
         cardStyle: {
           backgroundColor: theme.colors.background,
         },
@@ -47,6 +52,13 @@ const AuthNavigator: React.FC = () => {
         options={{
           title: 'Create Account',
           headerShown: true,
+        }}
+      />
+      <Stack.Screen 
+        name="OTPVerification" 
+        component={OTPVerificationScreen} 
+        options={{
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

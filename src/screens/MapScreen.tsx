@@ -175,15 +175,15 @@ const MapScreen: React.FC = () => {
       } else if (typeof spot.coordinates === 'string') {
         coords = spot.coordinates.split(',').map(c => parseFloat(c.trim()));
       } else {
-        coords = [-15.3875, 28.3228]; // Fallback to Lusaka
+        coords = [28.3228, -15.3875]; // Fallback to Lusaka [lng, lat]
       }
       
       parkingSpot = {
         id: spot.id,
         name: spot.name,
         address: `${spot.address.street}, ${spot.address.city}, ${spot.address.state}`,
-        latitude: coords[0] || -15.3875,
-        longitude: coords[1] || 28.3228,
+        latitude: coords[1] || -15.3875,  // coords[1] is latitude
+        longitude: coords[0] || 28.3228,  // coords[0] is longitude
         pricePerHour: 0,
         isAvailable: spot.availableSpaces > 0,
         totalSpots: spot.totalSpaces,
@@ -217,11 +217,11 @@ const MapScreen: React.FC = () => {
     // Parse coordinates handling both string and array formats
     let lat: number, lng: number;
     if (Array.isArray(parking.coordinates)) {
-      [lat, lng] = parking.coordinates;
+      [lng, lat] = parking.coordinates; // GeoJSON format [lng, lat]
     } else if (typeof parking.coordinates === 'string') {
-      [lat, lng] = parking.coordinates.split(',').map((coord: string) => parseFloat(coord.trim()));
+      [lng, lat] = parking.coordinates.split(',').map((coord: string) => parseFloat(coord.trim()));
     } else {
-      [lat, lng] = [-15.3875, 28.3228]; // Fallback to Lusaka
+      [lng, lat] = [28.3228, -15.3875]; // Fallback to Lusaka [lng, lat]
     }
     
     // Convert Parking to ParkingSpot format for map compatibility

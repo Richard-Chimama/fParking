@@ -194,7 +194,7 @@ const ParkingMap: React.FC<ParkingMapProps> = ({
             { backgroundColor: spot.isAvailable ? theme.colors.primary : theme.colors.error }
           ]}>
             <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-              {spot.availableSpots || 'P'}
+              P
             </Text>
           </View>
         </Marker>
