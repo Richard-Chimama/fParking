@@ -1,6 +1,21 @@
 import { gql } from '@apollo/client';
 
 // User Queries
+export const GET_FIREBASE_USER_INFO = gql`
+  query GetFirebaseUserInfo($firebaseUid: String!) {
+    getFirebaseUserInfo(firebaseUid: $firebaseUid) {
+      uid
+      email
+      phoneNumber
+      emailVerified
+      disabled
+      displayName
+      creationTime
+      lastSignInTime
+    }
+  }
+`;
+
 export const GET_ME = gql`
   query GetMe {
     me {

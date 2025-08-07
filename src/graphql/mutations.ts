@@ -1,43 +1,5 @@
 import { gql } from '@apollo/client';
 
-// Authentication Mutations
-export const LOGIN_USER = gql`
-  mutation Login {
-    login(input: { phoneNumber: "+260977123456", password: "password123" }) {
-      success
-      message
-      token
-      user {
-        id
-        firstName
-        lastName
-        email
-        phoneNumber
-        role
-        isVerified
-        isActive
-        profilePicture
-        dateOfBirth
-        lastLoginAt
-        createdAt
-        updatedAt
-        address {
-          street
-          city
-          state
-          zipCode
-          country
-        }
-        preferences {
-          notifications
-          emailNotifications
-          smsNotifications
-        }
-      }
-    }
-  }
-`;
-
 export const LOGIN_WITH_VARIABLES = gql`
   mutation LoginWithVariables($phoneNumber: String!, $password: String!) {
     login(input: { phoneNumber: $phoneNumber, password: $password }) {
@@ -75,38 +37,47 @@ export const LOGIN_WITH_VARIABLES = gql`
   }
 `;
 
-export const REGISTER_USER = gql`
-  mutation Register {
-    register(
-      input: {
-        firstName: null
-        lastName: null
-        phoneNumber: null
-        email: null
-        password: null
-      }
-    ) {
+// New Firebase-based authentication mutations following the updated flow
+export const VERIFY_FIREBASE_TOKEN = gql`
+  mutation VerifyFirebaseToken($input: VerifyFirebaseTokenInput!) {
+    verifyFirebaseToken(input: $input) {
       success
       message
-      token
-      user {
-        id
-        firstName
-        lastName
-        email
-        phoneNumber
-        role
-        isVerified
-        isActive
-        profilePicture
-        dateOfBirth
-        lastLoginAt
-        createdAt
-        updatedAt
-      }
     }
   }
 `;
+
+export const FIREBASE_LOGIN = gql`
+  mutation FirebaseLogin($input: FirebaseLoginInput!) {
+    firebaseLogin(input: $input) {
+      success
+      message
+      token
+    }
+  }
+`;
+
+export const SYNC_FIREBASE_USER = gql`
+  mutation SyncFirebaseUser($firebaseUid: String!) {
+    syncFirebaseUser(firebaseUid: $firebaseUid) {
+      success
+      message
+      token
+    }
+  }
+`;
+
+export const LINK_FIREBASE_ACCOUNT = gql`
+  mutation LinkFirebaseAccount($input: LinkFirebaseAccountInput!) {
+    linkFirebaseAccount(input: $input) {
+      success
+      message
+      token
+    }
+  }
+`;
+
+// Note: GET_FIREBASE_USER_INFO is moved to queries.ts as it should be a query, not a mutation
 
 export const REGISTER_WITH_VARIABLES = gql`
   mutation RegisterWithVariables($firstName: String!, $lastName: String!, $phoneNumber: String!, $email: String!, $password: String!) {
@@ -137,6 +108,17 @@ export const REGISTER_WITH_VARIABLES = gql`
         createdAt
         updatedAt
       }
+    }
+  }
+`;
+
+// Keep FIREBASE_REGISTER for initial user creation during sign up
+export const FIREBASE_REGISTER = gql`
+  mutation FirebaseRegister($input: FirebaseRegisterInput!) {
+    firebaseRegister(input: $input) {
+      success
+      message
+      token
     }
   }
 `;
@@ -332,11 +314,11 @@ export const REMOVE_FAVORITE = gql`
 
 // OTP Verification Mutations
 export const SEND_OTP = gql`
-  mutation SendOTP($input: SendOTPInput!) {
-    sendOTP(input: $input) {
+  mutation SendOTP($phoneNumber: String!) {
+    sendOTP(input: { phoneNumber: $phoneNumber }) {
       success
       message
-      otpId
+      token
     }
   }
 `;

@@ -43,3 +43,6 @@ config.json
 
 # typescript
 *.tsbuildinfo
+
+# Firebase configuration (contains sensitive data)
+firebase.config.js

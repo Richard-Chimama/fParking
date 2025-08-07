@@ -12,9 +12,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation } from '@apollo/client';
-import { REGISTER_WITH_VARIABLES, SEND_OTP } from '../graphql/mutations';
 import { useTheme } from '../theme/ThemeProvider';
+import { useAuth } from '../context/AuthContext';
 
 interface SignUpScreenProps {
   navigation: any;
@@ -22,6 +21,7 @@ interface SignUpScreenProps {
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const theme = useTheme();
+  const { signUp } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -32,112 +32,92 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const [registerMutation] = useMutation(REGISTER_WITH_VARIABLES, {
-    onCompleted: (data) => {
-      if (data.register.success) {
-        // After successful registration, send OTP
-        sendOTPMutation({
-          variables: {
-            input: {
-              phoneNumber: phoneNumber.trim(),
-              purpose: 'PHONE_VERIFICATION',
-            },
-          },
-        });
-      } else {
-        setIsLoading(false);
-        Alert.alert('Error', data.register.message || 'Registration failed');
-      }
-    },
-    onError: (error) => {
-      setIsLoading(false);
-      Alert.alert('Error', error.message || 'Registration failed');
-    },
-  });
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-  const [sendOTPMutation] = useMutation(SEND_OTP, {
-    onCompleted: (data) => {
-      setIsLoading(false);
-      if (data.sendOTP.success) {
-        Alert.alert(
-          'Account Created!',
-          'Please verify your phone number to complete registration.',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('OTPVerification', {
-                phoneNumber: phoneNumber.trim(),
-                otpId: data.sendOTP.otpId,
-                fromSignup: true,
-              }),
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Error', data.sendOTP.message || 'Failed to send OTP');
-      }
-    },
-    onError: (error) => {
-       setIsLoading(false);
-       Alert.alert('Error', error.message || 'Failed to send OTP');
-     },
-   });
+  const isValidPassword = (password: string) => {
+    return password.length >= 6;
+  };
 
-  const validateForm = () => {
-    if (!firstName.trim()) {
-      Alert.alert('Error', 'Please enter your first name');
-      return false;
-    }
-    if (!lastName.trim()) {
-      Alert.alert('Error', 'Please enter your last name');
-      return false;
-    }
-    if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
-      return false;
-    }
-    if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return false;
-    }
-    if (!phoneNumber.trim()) {
-      Alert.alert('Error', 'Please enter your phone number');
-      return false;
-    }
-    if (!password.trim()) {
-      Alert.alert('Error', 'Please enter a password');
-      return false;
-    }
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return false;
-    }
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return false;
-    }
-    return true;
+  const isValidPhoneNumber = (phone: string) => {
+    // Basic phone number validation (starts with + and contains only digits)
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    return phoneRegex.test(phone);
   };
 
   const handleSignUp = async () => {
-    if (!validateForm()) {
+    // Validation
+    if (!firstName.trim() || !lastName.trim() || !password.trim() || !confirmPassword.trim()) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    // Check if at least email or phone is provided
+    if (!email.trim() && !phoneNumber.trim()) {
+      Alert.alert('Error', 'Please provide either an email address or phone number');
+      return;
+    }
+
+    // Validate email if provided
+    if (email.trim() && !isValidEmail(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    // Validate phone if provided
+    if (phoneNumber.trim() && !isValidPhoneNumber(phoneNumber)) {
+      Alert.alert('Error', 'Please enter a valid phone number (format: +1234567890)');
+      return;
+    }
+
+    if (!isValidPassword(password)) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
     setIsLoading(true);
     try {
-      await registerMutation({
-        variables: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim().toLowerCase(),
-          phoneNumber: phoneNumber.trim(),
-          password: password.trim(),
-        },
-      });
-    } catch (error) {
+      // Use email for sign up if provided, otherwise use phone
+      const identifier = email.trim() || phoneNumber.trim();
+      await signUp(identifier, password, firstName.trim(), lastName.trim());
+      
+      const successMessage = email.trim() 
+        ? 'Registration successful! Please check your email to verify your account.'
+        : 'Registration successful! You can now sign in with your phone number.';
+      
+      Alert.alert(
+        'Success', 
+        successMessage,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.navigate('SignIn');
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      let errorMessage = 'Registration failed';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'An account with this email already exists';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email address';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak';
+      } else if (error.code === 'auth/phone-number-already-exists') {
+        errorMessage = 'An account with this phone number already exists';
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
       setIsLoading(false);
-      console.error('Registration error:', error);
     }
   };
 
@@ -213,7 +193,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
               {/* Email Input */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Email</Text>
+                <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Email (Optional if phone provided)</Text>
                 <View style={[styles.inputContainer, { borderColor: theme.colors.border }]}>
                   <Ionicons
                     name="mail-outline"
@@ -235,7 +215,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
               {/* Phone Number Input */}
               <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Phone Number</Text>
+                <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Phone Number (Optional if email provided)</Text>
                 <View style={[styles.inputContainer, { borderColor: theme.colors.border }]}>
                   <Ionicons
                     name="call-outline"

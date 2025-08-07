@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "973098791530",
+    "project_id": "soul-compass-367jw",
+    "storage_bucket": "soul-compass-367jw.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:973098791530:android:e9beecce31d439033ad013",
+        "android_client_info": {
+          "package_name": "com.fparking.rich"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "973098791530-rfnh4hfv1to9ua5aq3q4e6d264nvamk2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDvHRftkxVTnKvU_C30seV-S07V1YoB04"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "973098791530-rfnh4hfv1to9ua5aq3q4e6d264nvamk2.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "973098791530-96dkhc6c978hai4fq8stepq8n4pvsl8l.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.fparking.rich"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

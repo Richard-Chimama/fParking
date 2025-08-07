@@ -16,6 +16,7 @@ A modern React Native mobile application built with Expo and TypeScript for find
 
 - **Framework**: React Native with Expo SDK 53
 - **Language**: TypeScript
+- **Authentication**: Firebase Authentication
 - **State Management**: Apollo Client for GraphQL
 - **Navigation**: React Navigation 6
 - **Maps**: React Native Maps
@@ -60,7 +61,12 @@ cd fParking
 npm install
 ```
 
-3. Configure API keys and secrets:
+3. Configure Firebase Authentication:
+   - Copy `firebase.config.sample.js` to `firebase.config.js`
+   - Replace the demo values with your actual Firebase project configuration
+   - See [Firebase Setup](#firebase-setup) section below for detailed instructions
+
+4. Configure other API keys and secrets:
    - Copy `config.sample.json` to `config.json`
    - Edit `config.json` with your actual API keys:
      - GraphQL endpoint URL
@@ -70,12 +76,83 @@ npm install
      - Sentry DSN
      - Amplitude API key
 
-4. Start the development server:
+5. Start the development server:
 ```bash
 npm start
 ```
 
-5. Use Expo Go app to scan the QR code and run the app on your device, or use the iOS/Android simulators.
+6. Use Expo Go app to scan the QR code and run the app on your device, or use the iOS/Android simulators.
+
+## Firebase Setup
+
+This app uses Firebase Authentication for user management. Follow these steps to set up Firebase:
+
+### 1. Create a Firebase Project
+
+1. Go to the [Firebase Console](https://console.firebase.google.com/)
+2. Click "Create a project" or select an existing project
+3. Follow the setup wizard to create your project
+
+### 2. Enable Authentication
+
+1. In the Firebase Console, go to **Authentication** > **Sign-in method**
+2. Enable **Email/Password** authentication
+3. Optionally, configure other sign-in providers as needed
+
+### 3. Get Your Configuration
+
+1. Go to **Project Settings** (gear icon) > **General**
+2. Scroll down to "Your apps" section
+3. Click "Add app" and select the web platform (</>) 
+4. Register your app with a nickname (e.g., "fParking")
+5. Copy the `firebaseConfig` object
+
+### 4. Configure the App
+
+1. Copy `firebase.config.sample.js` to `firebase.config.js`:
+   ```bash
+   cp firebase.config.sample.js firebase.config.js
+   ```
+
+2. Replace the demo configuration in `firebase.config.js` with your actual Firebase config:
+   ```javascript
+   export const firebaseConfig = {
+     apiKey: "your-actual-api-key",
+     authDomain: "your-project-id.firebaseapp.com",
+     projectId: "your-project-id",
+     storageBucket: "your-project-id.appspot.com",
+     messagingSenderId: "your-messaging-sender-id",
+     appId: "your-app-id"
+   };
+   ```
+
+3. Update `src/config/firebase.ts` to import your configuration:
+   ```typescript
+   // Replace the demo config import with:
+   import { firebaseConfig } from '../../firebase.config';
+   ```
+
+### 5. Test Authentication
+
+1. Start the app with `npm start`
+2. Navigate to the Sign Up screen
+3. Create a new account with email and password
+4. Check the Firebase Console > Authentication > Users to see the new user
+
+### Security Notes
+
+- The `firebase.config.js` file is added to `.gitignore` to prevent committing sensitive credentials
+- Never commit your actual Firebase configuration to version control
+- Use Firebase Security Rules to protect your data in production
+
+### Authentication Features
+
+- **Email/Password Sign Up**: Users can create accounts with email and password
+- **Email/Password Sign In**: Users can sign in with their credentials
+- **Automatic Session Management**: Firebase handles user sessions automatically
+- **Password Validation**: Minimum 6 characters required
+- **Email Verification**: Users receive verification emails (optional)
+- **Error Handling**: Comprehensive error messages for common authentication issues
 
 ## Theme System
 

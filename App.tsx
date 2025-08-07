@@ -5,16 +5,18 @@ import { apolloClient } from './src/apollo/client';
 import AppNavigator from './src/navigation/AppNavigator';
 import { ThemeProvider } from './src/theme/ThemeProvider';
 import { AuthProvider } from './src/context/AuthContext';
+// Initialize Firebase
+import './src/config/firebase';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ApolloProvider client={apolloClient}>
+    <ApolloProvider client={apolloClient}>
+      <ThemeProvider>
+        <AuthProvider>
           <AppNavigator />
           <StatusBar style="auto" />
-        </ApolloProvider>
-      </AuthProvider>
-    </ThemeProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ApolloProvider>
   );
 }
