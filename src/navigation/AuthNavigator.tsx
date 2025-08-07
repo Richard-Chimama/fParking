@@ -10,7 +10,8 @@ export type AuthStackParamList = {
   SignUp: undefined;
   OTPVerification: {
     phoneNumber: string;
-    otpId?: string;
+    confirmation?: any; // Firebase confirmation object
+    otpId?: string; // Keep for backward compatibility
     fromSignup?: boolean;
   };
 };

@@ -10,10 +10,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation } from '@apollo/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { VERIFY_OTP, RESEND_OTP } from '../graphql/mutations';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
 import { AuthStackParamList } from '../navigation/AuthNavigator';
@@ -27,81 +26,115 @@ interface OTPVerificationScreenProps {
 }
 
 const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigation, route }) => {
-  const theme = useTheme();
-  const { signIn } = useAuth();
-  const { phoneNumber, otpId, fromSignup = false } = route.params;
+  const { colors } = useTheme();
+  const { signIn, signUp, signInWithPhone } = useAuth();
+  const { phoneNumber, confirmation: initialConfirmation, otpId, fromSignup } = route.params;
   
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [timer, setTimer] = useState(60);
+  const [resendTimer, setResendTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [confirmation, setConfirmation] = useState(initialConfirmation);
   
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  const [verifyOTPMutation] = useMutation(VERIFY_OTP, {
-    onCompleted: (data) => {
-      setIsLoading(false);
-      if (data.verifyOTP.success) {
+  const verifyOTP = async () => {
+    try {
+      setIsLoading(true);
+      const otpCode = otp.join('');
+      
+      if (confirmation) {
+        // Use Firebase confirmation to verify OTP
+        const result = await confirmation.confirm(otpCode);
+        
         if (fromSignup) {
-          Alert.alert(
-            'Success',
-            'Phone number verified successfully! You can now sign in.',
-            [
-              {
-                text: 'OK',
-                onPress: () => navigation.navigate('SignIn'),
-              },
-            ]
-          );
-        } else {
-          // Login the user if this is for login verification
-          if (data.verifyOTP.token && data.verifyOTP.user) {
-            signIn(data.verifyOTP.token, data.verifyOTP.user);
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'SignIn' }],
-            });
+          try {
+            // Retrieve stored signup details
+            const storedDetails = await AsyncStorage.getItem('pendingSignupDetails');
+            if (storedDetails) {
+              const userDetails = JSON.parse(storedDetails);
+              
+              // Complete the signup process
+              await signUp(
+                userDetails.phoneNumber, // Use phone number as identifier
+                userDetails.password,
+                userDetails.firstName,
+                userDetails.lastName
+              );
+              
+              // Clear stored details
+              await AsyncStorage.removeItem('pendingSignupDetails');
+              
+              Alert.alert(
+                'Success',
+                'Account created successfully! You can now sign in with your phone number.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => navigation.navigate('SignIn'),
+                  },
+                ]
+              );
+            } else {
+              Alert.alert('Error', 'Signup details not found. Please try again.');
+              navigation.navigate('SignUp');
+            }
+          } catch (error) {
+            console.error('Error completing signup:', error);
+            Alert.alert('Error', 'Failed to complete signup. Please try again.');
           }
+        } else {
+          // User is already signed in via Firebase, navigate to main app
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'SignIn' }],
+          });
         }
       } else {
-        Alert.alert('Error', data.verifyOTP.message || 'OTP verification failed');
+        Alert.alert('Error', 'No confirmation object available');
       }
-    },
-    onError: (error) => {
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      Alert.alert('Error', 'Invalid verification code. Please try again.');
+    } finally {
       setIsLoading(false);
-      Alert.alert('Error', error.message || 'OTP verification failed');
-    },
-  });
+    }
+  };
 
-  const [resendOTPMutation] = useMutation(RESEND_OTP, {
-    onCompleted: (data) => {
+  const resendOTP = async () => {
+    try {
+      setIsResending(true);
+      
+      // Use Firebase to resend OTP
+      const newConfirmation = await signInWithPhone(phoneNumber);
+      
+      // Update the confirmation object in state
+      setConfirmation(newConfirmation);
+      
+      setResendTimer(60);
+      setCanResend(false);
+      Alert.alert('Success', 'Verification code has been resent to your phone.');
+    } catch (error) {
+      console.error('Error resending OTP:', error);
+      Alert.alert('Error', 'Failed to resend verification code. Please try again.');
+    } finally {
       setIsResending(false);
-      if (data.resendOTP.success) {
-        Alert.alert('Success', 'OTP has been resent to your phone number');
-        setTimer(60);
-        setCanResend(false);
-      } else {
-        Alert.alert('Error', data.resendOTP.message || 'Failed to resend OTP');
-      }
-    },
-    onError: (error) => {
-      setIsResending(false);
-      Alert.alert('Error', error.message || 'Failed to resend OTP');
-    },
-  });
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (timer > 0) {
+    if (resendTimer > 0) {
       interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
+        setResendTimer((prev) => prev - 1);
       }, 1000);
     } else {
       setCanResend(true);
     }
+
     return () => clearInterval(interval);
-  }, [timer]);
+  }, [resendTimer]);
 
   const handleOTPChange = (value: string, index: number) => {
     if (value.length > 1) return; // Prevent multiple characters
@@ -135,40 +168,13 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigatio
       return;
     }
 
-    setIsLoading(true);
-    try {
-      await verifyOTPMutation({
-        variables: {
-          input: {
-            phoneNumber,
-            otp: otpToVerify,
-            otpId: otpId || null,
-          },
-        },
-      });
-    } catch (error) {
-      setIsLoading(false);
-      console.error('OTP verification error:', error);
-    }
+    await verifyOTP();
   };
 
   const handleResendOTP = async () => {
     if (!canResend) return;
     
-    setIsResending(true);
-    try {
-      await resendOTPMutation({
-        variables: {
-          input: {
-            phoneNumber,
-            otpId: otpId || null,
-          },
-        },
-      });
-    } catch (error) {
-      setIsResending(false);
-      console.error('Resend OTP error:', error);
-    }
+    await resendOTP();
   };
 
   const formatPhoneNumber = (phone: string) => {
@@ -180,7 +186,7 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigatio
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -188,15 +194,15 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigatio
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           
-          <View style={[styles.iconContainer, { backgroundColor: theme.colors.primary }]}>
-            <Ionicons name="shield-checkmark" size={32} color={theme.colors.textLight} />
+          <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
+            <Ionicons name="shield-checkmark" size={32} color={colors.textLight} />
           </View>
           
-          <Text style={[styles.title, { color: theme.colors.text }]}>Verify OTP</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Verify OTP</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             We've sent a 6-digit code to{' \n'}
             <Text style={{ fontWeight: '600' }}>{formatPhoneNumber(phoneNumber)}</Text>
           </Text>
@@ -213,9 +219,9 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigatio
               style={[
                 styles.otpInput,
                 {
-                  borderColor: digit ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: theme.colors.surface,
-                  color: theme.colors.text,
+                  borderColor: digit ? colors.primary : colors.border,
+                  backgroundColor: colors.surface,
+                  color: colors.text,
                 },
               ]}
               value={digit}
@@ -233,16 +239,16 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigatio
         <TouchableOpacity
           style={[
             styles.verifyButton,
-            { backgroundColor: theme.colors.primary },
+            { backgroundColor: colors.primary },
             (isLoading || otp.join('').length !== 6) && styles.disabledButton,
           ]}
           onPress={() => handleVerifyOTP()}
           disabled={isLoading || otp.join('').length !== 6}
         >
           {isLoading ? (
-            <ActivityIndicator color={theme.colors.textLight} />
+            <ActivityIndicator color={colors.textLight} />
           ) : (
-            <Text style={[styles.verifyButtonText, { color: theme.colors.textLight }]}>
+            <Text style={[styles.verifyButtonText, { color: colors.textLight }]}>
               Verify OTP
             </Text>
           )}
@@ -252,13 +258,13 @@ const OTPVerificationScreen: React.FC<OTPVerificationScreenProps> = ({ navigatio
         <View style={styles.resendContainer}>
           {canResend ? (
             <TouchableOpacity onPress={handleResendOTP} disabled={isResending}>
-              <Text style={[styles.resendText, { color: theme.colors.primary }]}>
+              <Text style={[styles.resendText, { color: colors.primary }]}>
                 {isResending ? 'Resending...' : 'Resend OTP'}
               </Text>
             </TouchableOpacity>
           ) : (
-            <Text style={[styles.timerText, { color: theme.colors.textSecondary }]}>
-              Resend OTP in {timer}s
+            <Text style={[styles.timerText, { color: colors.textSecondary }]}>
+              Resend OTP in {resendTimer}s
             </Text>
           )}
         </View>

@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
 
@@ -21,7 +22,7 @@ interface SignUpScreenProps {
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const theme = useTheme();
-  const { signUp } = useAuth();
+  const { signUp, signInWithPhone } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -83,28 +84,60 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     }
 
     setIsLoading(true);
+    
     try {
-      // Use email for sign up if provided, otherwise use phone
-      const identifier = email.trim() || phoneNumber.trim();
-      await signUp(identifier, password, firstName.trim(), lastName.trim());
-      
-      const successMessage = email.trim() 
-        ? 'Registration successful! Please check your email to verify your account.'
-        : 'Registration successful! You can now sign in with your phone number.';
-      
-      Alert.alert(
-        'Success', 
-        successMessage,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.navigate('SignIn');
+      // If phone number is provided, use Firebase phone authentication
+      if (phoneNumber.trim()) {
+        // Store user details temporarily for after OTP verification
+        const userDetails = {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim() || null,
+          phoneNumber: phoneNumber.trim(),
+          password: password
+        };
+        
+        try {
+          await AsyncStorage.setItem('pendingSignupDetails', JSON.stringify(userDetails));
+        } catch (error) {
+          console.error('Error storing signup details:', error);
+        }
+        
+        // Use Firebase phone authentication
+        const confirmation = await signInWithPhone(phoneNumber.trim());
+        
+        // Navigate to OTP verification screen
+        navigation.navigate('OTPVerification', {
+          phoneNumber: phoneNumber.trim(),
+          confirmation: confirmation,
+          fromSignup: true
+        });
+        
+        Alert.alert(
+          'OTP Sent',
+          `A verification code has been sent to ${phoneNumber.trim()}. Please enter the code to verify your phone number.`
+        );
+        setIsLoading(false);
+      } else {
+        // If only email is provided, proceed with direct signup
+        await signUp(email.trim(), password, firstName.trim(), lastName.trim());
+        
+        Alert.alert(
+          'Success', 
+          'Registration successful! Please check your email to verify your account.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                navigation.navigate('SignIn');
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+        setIsLoading(false);
+      }
     } catch (error: any) {
+      setIsLoading(false);
       let errorMessage = 'Registration failed';
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'An account with this email already exists';
@@ -114,10 +147,10 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         errorMessage = 'Password is too weak';
       } else if (error.code === 'auth/phone-number-already-exists') {
         errorMessage = 'An account with this phone number already exists';
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       Alert.alert('Error', errorMessage);
-    } finally {
-      setIsLoading(false);
     }
   };
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Alert } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
 
@@ -17,7 +17,32 @@ const Drawer = createDrawerNavigator();
 
 const AppNavigator: React.FC = () => {
   const theme = useTheme();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, signOut } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   // Show loading spinner while checking authentication status
   if (isLoading) {
@@ -119,6 +144,26 @@ const AppNavigator: React.FC = () => {
                   color={color} 
                 />
               ),
+            }}
+          />
+          <Drawer.Screen 
+            name="Logout" 
+            component={() => null} 
+            options={{
+              title: 'Logout',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons 
+                  name="log-out-outline" 
+                  size={size} 
+                  color={color} 
+                />
+              ),
+            }}
+            listeners={{
+              drawerItemPress: (e) => {
+                e.preventDefault();
+                handleLogout();
+              },
             }}
           />
 

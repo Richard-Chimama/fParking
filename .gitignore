@@ -46,3 +46,5 @@ config.json
 
 # Firebase configuration (contains sensitive data)
 firebase.config.js
+google-services.json
+GoogleService-Info.plist

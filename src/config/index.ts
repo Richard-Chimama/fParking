@@ -38,7 +38,7 @@ export interface AppConfig {
 
 // Export configuration with fallback values
 export const appConfig: AppConfig = {
-  graphqlEndpoint: currentConfig.graphqlEndpoint || 'https://localhost:4000/graphql',
+  graphqlEndpoint: currentConfig.graphqlEndpoint || 'http://localhost:4000/graphql',
   googleMapsApiKey: currentConfig.googleMapsApiKey || '',
   stripePublishableKey: currentConfig.stripePublishableKey || '',
   oneSignalAppId: currentConfig.oneSignalAppId || '',
