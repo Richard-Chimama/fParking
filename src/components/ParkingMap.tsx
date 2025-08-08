@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeProvider';
 import { ParkingSpot, Parking } from '../types';
 import { useParkings, parseCoordinates } from '../hooks/useParkings';
-
 interface ParkingMapProps {
   initialRegion?: {
     latitude: number;
@@ -311,20 +310,42 @@ const ParkingMap = forwardRef<ParkingMapRef, ParkingMapProps>((
     };
   });
 
-  const googleMapsMarkers = [
-    ...(carMarkerCoordinate ? [{
-      id: 'user-car',
-      coordinates: carMarkerCoordinate,
-      title: 'Your Car',
-      snippet: 'Current location',
-    }] : []),
-    ...parkingMarkers.map(marker => ({
-      id: marker.id,
-      coordinates: marker.coordinate,
-      title: marker.title,
-      snippet: marker.description,
-    })),
-  ];
+ const googleMapsMarkers = [
+  ...(carMarkerCoordinate ? [{
+    id: 'user-car',
+    coordinates: carMarkerCoordinate,
+    title: 'Your Car',
+    snippet: 'Current location',
+    icon: require('../assets/pins/car-pin.svg'), // custom car pin
+    // Optional (if supported in your SDK version)
+    // anchor: { x: 0.5, y: 1 }, // bottom-center anchor
+    // zIndex: 2,
+  }] : []),
+
+  ...currentParkingSpots.map(spot => {
+    const coord = adjustedCoordinates.get(spot.id) ?? {
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+    };
+    const isHighlighted = highlightedParkingId === spot.id;
+    const isAvailable = spot.isAvailable;
+
+    return {
+      id: spot.id,
+      coordinates: coord,
+      title: spot.name,
+      snippet: `Available: ${isAvailable ? 'Yes' : 'No'}`,
+      icon: isHighlighted
+        ? require('../assets/pins/parking-pin-highlighted.svg')
+        : isAvailable
+          ? require('../assets/pins/parking-pin-available.svg')
+          : require('../assets/pins/parking-pin-unavailable.svg'),
+      // anchor: { x: 0.5, y: 1 },
+      // zIndex: isHighlighted ? 3 : 1,
+    };
+  }),
+];
+
 
   const handleMarkerClick = (markerId: string) => {
     if (markerId === 'user-car') return;
