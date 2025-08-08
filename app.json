@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fparking.app",
-      "googleServicesFile": "./GoogleService-Info.plist",
+      "googleServicesFile": "$GOOGLE_SERVICE_INFO_PLIST",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -27,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.fparking.app",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "$GOOGLE_SERVICES_JSON"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -39,7 +39,7 @@
       [
         "expo-maps",
         {
-          "googleMapsApiKey": "AIzaSyCWXnWtjlrYpW6YGP3ADasaLIu9t2PC9gc"
+          "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY"
         }
       ]
     ],
