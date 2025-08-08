@@ -1,52 +1,8 @@
 {
-  "expo": {
-    "name": "EasyPark",
-    "slug": "fParking",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.fparking.app",
-      "googleServicesFile": "$GOOGLE_SERVICE_INFO_PLIST",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.fparking.app",
-      "googleServicesFile": "$GOOGLE_SERVICES_JSON"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-dev-client",
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      [
-        "expo-maps",
-        {
-          "googleMapsApiKey": "$GOOGLE_MAPS_API_KEY"
-        }
-      ]
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "84495ccf-e66b-40ff-907a-79cf882d74fc"
-      }
+  // Using app.config.ts now. Keeping minimal placeholder to avoid duplication.
+  {
+    "expo": {
+      "name": "EasyPark",
+      "slug": "fParking"
     }
   }
-}
