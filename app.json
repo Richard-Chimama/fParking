@@ -1,8 +1,7 @@
 {
-  // Using app.config.ts now. Keeping minimal placeholder to avoid duplication.
-  {
-    "expo": {
-      "name": "EasyPark",
-      "slug": "fParking"
-    }
+{
+  "expo": {
+    "name": "EasyPark",
+    "slug": "fParking"
   }
+}
