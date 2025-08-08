@@ -1,28 +1,15 @@
 // firebase.ts - React Native Firebase Configuration (v22 Modular API)
 
-import { getApp, getApps, initializeApp, FirebaseApp } from '@react-native-firebase/app';
-import { getAuth, initializeAuth, getReactNativePersistence, FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { initializeApp } from '@react-native-firebase/app';
+import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// --- Initialize Firebase App ---
-let app: FirebaseApp;
-if (getApps().length === 0) {
-  app = initializeApp();
-} else {
-  app = getApp();
-}
+// Firebase app is automatically initialized via google-services.json (Android) or GoogleService-Info.plist (iOS)
+// No manual initialization needed for React Native Firebase
 
-// --- Initialize Auth with AsyncStorage persistence ---
-let auth: FirebaseAuthTypes.Module;
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch (error) {
-  // If auth is already initialized, get the existing instance
-  auth = getAuth(app);
-}
+// Set up AsyncStorage for auth persistence (this is the default behavior)
+// React Native Firebase automatically uses AsyncStorage for persistence
 
 // --- Exports ---
-export { app, auth };
-export default app;
+export { auth };
+export default auth;

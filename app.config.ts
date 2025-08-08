@@ -26,6 +26,9 @@ const config: ExpoConfig = {
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
     },
+    config: {
+      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
+    },
   },
   android: {
     adaptiveIcon: {
@@ -36,21 +39,21 @@ const config: ExpoConfig = {
     package: 'com.fparking.app',
     // For Android, use environment variable on EAS, local file for development
     googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
+    config: {
+      googleMaps: {
+        apiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
+      },
+    },
   },
   web: {
     favicon: './assets/favicon.png',
   },
   plugins: [
-    'expo-dev-client',
-    '@react-native-firebase/app',
-    '@react-native-firebase/auth',
-    [
+      'expo-dev-client',
+      '@react-native-firebase/app',
+      '@react-native-firebase/auth',
       'expo-maps',
-      {
-        googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
-      },
     ],
-  ],
   extra: {
     eas: {
       projectId: '84495ccf-e66b-40ff-907a-79cf882d74fc',

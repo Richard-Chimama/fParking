@@ -1,16 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useLazyQuery } from '@apollo/client';
-import { auth } from '../config/firebase';
-import { 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut as firebaseSignOut, 
-  updateProfile,
-  signInWithPhoneNumber,
-  FirebaseAuthTypes 
-} from '@react-native-firebase/auth';
+import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import { FIREBASE_REGISTER, VERIFY_FIREBASE_TOKEN, SYNC_FIREBASE_USER, FIREBASE_LOGIN, LINK_FIREBASE_ACCOUNT } from '../graphql/mutations';
 import { GET_FIREBASE_USER_INFO } from '../graphql/queries';
 
@@ -80,7 +71,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Listen to Firebase auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
       setFirebaseUser(firebaseUser);
       if (firebaseUser) {
         // Load or create user profile data
@@ -137,16 +128,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // 1. Firebase auth
       if (isValidEmail(identifier)) {
         // Email authentication
-        await signInWithEmailAndPassword(auth, identifier, password);
+        await auth().signInWithEmailAndPassword(identifier, password);
       } else if (isValidPhoneNumber(identifier)) {
         // For phone number login, we need to construct the Firebase email
         const firebaseEmail = `${identifier.replace(/[^0-9]/g, '')}@placeholder.com`;
-        await signInWithEmailAndPassword(auth, firebaseEmail, password);
+        await auth().signInWithEmailAndPassword(firebaseEmail, password);
       } else {
         throw new Error('Invalid email or phone number format');
       }
       
-      const firebaseUser = auth.currentUser;
+      const firebaseUser = auth().currentUser;
       if (!firebaseUser) {
         throw new Error('Firebase authentication failed');
       }
@@ -229,7 +220,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signInWithPhone = async (phoneNumber: string) => {
     try {
       // React Native Firebase phone authentication
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber);
+      const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
       return confirmation;
     } catch (error) {
       console.error('Error signing in with phone:', error);
@@ -247,11 +238,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // 1. Firebase auth - Create Firebase user with email (required for Firebase)
       // If phone number is provided, we'll use a placeholder email for Firebase
       const firebaseEmail = email || `${phoneNumber.replace(/[^0-9]/g, '')}@placeholder.com`;
-      const userCredential = await createUserWithEmailAndPassword(auth, firebaseEmail, password);
+      const userCredential = await auth().createUserWithEmailAndPassword(firebaseEmail, password);
       
       // Update the user's display name
-      await updateProfile(userCredential.user, {
-        displayName: `${firstName} ${lastName}`
+      await userCredential.user.updateProfile({
+        displayName: `${firstName} ${lastName}`,
       });
       
       // 2. Get ID token
@@ -311,7 +302,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
-      await firebaseSignOut(auth);
+      await auth().signOut();
       // User state will be updated automatically via onAuthStateChanged
     } catch (error) {
       console.error('Error signing out:', error);

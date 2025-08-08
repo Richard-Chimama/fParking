@@ -21,7 +21,9 @@ import { ParkingSpot, Parking } from '../types';
 import ParkingMap, { ParkingMapRef } from '../components/ParkingMap';
 import SearchDrawer from '../components/SearchDrawer';
 import CompassIndicator from '../components/CompassIndicator';
-import { useParkings } from '../hooks/useParkings';
+import ParkingLegend from '../components/ParkingLegend';
+import ParkingInfoPopup from '../components/ParkingInfoPopup';
+import { useParkings, parseCoordinates } from '../hooks/useParkings';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,6 +37,10 @@ const MapScreen: React.FC = () => {
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [selectedArea, setSelectedArea] = useState<string>('Välj område');
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const [selectedParking, setSelectedParking] = useState<ParkingSpot | Parking | null>(null);
+  const [showParkingInfo, setShowParkingInfo] = useState(false);
+  const [highlightedParkingId, setHighlightedParkingId] = useState<string | null>(null);
   
   // Map reference for controlling map view
   const mapRef = useRef<ParkingMapRef>(null);
@@ -154,10 +160,14 @@ const MapScreen: React.FC = () => {
 
   const zoomToUserLocation = () => {
     if (location) {
-      // This would typically call a method on the ParkingMap component
-      // to zoom to the user's location
-      getCurrentLocation();
-      Alert.alert('Zooming', 'Zooming to your current location...');
+      if (mapRef.current) {
+        mapRef.current.animateToRegion({
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        });
+      }
     } else {
       // If no location, request permission
       requestLocationPermission();
@@ -165,52 +175,109 @@ const MapScreen: React.FC = () => {
   };
 
   const handleMarkerPress = (spot: ParkingSpot | Parking) => {
-    // Convert Parking to ParkingSpot format if needed
-    let parkingSpot: ParkingSpot;
-    if ('coordinates' in spot) {
-      // This is a Parking object from database
-      let coords: number[];
-      if (Array.isArray(spot.coordinates)) {
-        coords = spot.coordinates;
-      } else if (typeof spot.coordinates === 'string') {
-        coords = spot.coordinates.split(',').map(c => parseFloat(c.trim()));
+    setSelectedParking(spot);
+    setShowParkingInfo(true);
+    setHighlightedParkingId(spot.id);
+
+    // Smoothly fit map to user + selected spot if we have both
+    if (mapRef.current) {
+      if ('latitude' in spot && 'longitude' in spot) {
+        if (location) {
+          // Check if user is in Zambia
+          const isUserInZambia = location.coords.latitude >= -20 && location.coords.latitude <= -8 && 
+                                location.coords.longitude >= 22 && location.coords.longitude <= 34;
+          
+          if (isUserInZambia) {
+            // User is in Zambia, fit both user and parking spot
+            mapRef.current.fitToCoordinates([
+              { latitude: location.coords.latitude, longitude: location.coords.longitude },
+              { latitude: spot.latitude, longitude: spot.longitude },
+            ]);
+          } else {
+            // User is outside Zambia, just center on the parking spot
+            mapRef.current.animateToRegion({
+              latitude: spot.latitude,
+              longitude: spot.longitude,
+              latitudeDelta: 0.02,
+              longitudeDelta: 0.02,
+            });
+          }
+        } else {
+          mapRef.current.animateToRegion({
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          });
+        }
+      }
+    }
+  };
+
+  const handleBookParking = (parking: ParkingSpot | Parking) => {
+    console.log('Book parking:', parking.id);
+    setShowParkingInfo(false);
+    // TODO: Navigate to booking screen or implement booking logic
+    Alert.alert('Booking', 'Booking functionality will be implemented here');
+  };
+
+  const handleNavigateToParking = (parking: ParkingSpot | Parking) => {
+    console.log('Navigate to parking:', parking.id);
+    setShowParkingInfo(false);
+    
+    // Center the map on the selected parking location
+    if (mapRef.current) {
+      let latitude: number, longitude: number;
+      let parkingName: string;
+      
+      if ('latitude' in parking && 'longitude' in parking) {
+        // ParkingSpot format
+        latitude = parking.latitude;
+        longitude = parking.longitude;
+        parkingName = parking.name;
       } else {
-        coords = [28.3228, -15.3875]; // Fallback to Lusaka [lng, lat]
+        // Parking format - parse coordinates
+        parkingName = parking.name;
+        const coords = parseCoordinates(parking.coordinates);
+        if (coords) {
+          latitude = coords.latitude;
+          longitude = coords.longitude;
+        } else {
+          // Fallback to Lusaka if coordinates can't be parsed
+          latitude = -15.3875;
+          longitude = 28.3228;
+        }
       }
       
-      parkingSpot = {
-        id: spot.id,
-        name: spot.name,
-        address: `${spot.address.street}, ${spot.address.city}, ${spot.address.state}`,
-        latitude: coords[1] || -15.3875,  // coords[1] is latitude
-        longitude: coords[0] || 28.3228,  // coords[0] is longitude
-        pricePerHour: 0,
-        isAvailable: spot.availableSpaces > 0,
-        totalSpots: spot.totalSpaces,
-        availableSpots: spot.availableSpaces,
-        features: [],
-        images: [],
-        rating: 0,
-        reviews: [],
-      };
-    } else {
-      // This is already a ParkingSpot object
-      parkingSpot = spot;
+      // Animate to the parking location with a good zoom level
+      mapRef.current.animateToRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.01, // Zoomed in to see the parking area clearly
+        longitudeDelta: 0.01,
+      });
+      
+      // Show a brief confirmation to the user
+      Alert.alert(
+        'Navigation',
+        `Navigating to ${parkingName}`,
+        [{ text: 'OK', style: 'default' }],
+        { cancelable: true }
+      );
     }
-    
-    Alert.alert(
-      parkingSpot.name,
-      `${parkingSpot.address}\n$${parkingSpot.pricePerHour}/hour\n${parkingSpot.availableSpots} spots available`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Book Now', onPress: () => console.log('Book spot:', parkingSpot.id) },
-      ]
-    );
   };
 
   const handleSelectSpot = (spot: ParkingSpot) => {
     // Focus on the selected parking spot on the map
     handleMarkerPress(spot);
+    if (mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    }
   };
 
   const handleSelectParking = (parking: Parking) => {
@@ -243,18 +310,27 @@ const MapScreen: React.FC = () => {
     
     // Focus on the selected parking spot on the map
     handleMarkerPress(parkingSpot);
+    if (mapRef.current) {
+      mapRef.current.animateToRegion({
+        latitude: parkingSpot.latitude,
+        longitude: parkingSpot.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    }
   };
 
   // Note: Map region is now handled by ParkingMap component (focused on Zambia)
   
-  // Recenter map to Zambia when compass is clicked
+  // Center map to Zambia when compass is clicked
   const handleCompassPress = () => {
     if (mapRef.current) {
+      // Always focus on Zambia with a good zoom level to show all parking spots
       const zambiaRegion = {
-        latitude: -15.3875,
-        longitude: 28.3228,
-        latitudeDelta: 8.0,
-        longitudeDelta: 8.0,
+        latitude: -14.8932, // Center of Zambia based on parking data
+        longitude: 27.8877,
+        latitudeDelta: 6.0, // Zoom out to show all Zambia parking spots
+        longitudeDelta: 6.0,
       };
       mapRef.current.animateToRegion(zambiaRegion);
     }
@@ -478,6 +554,7 @@ const MapScreen: React.FC = () => {
         onMarkerPress={handleMarkerPress}
         showUserLocation={true}
         useDatabase={true}
+        highlightedParkingId={highlightedParkingId}
         carMarkerCoordinate={location ? {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -522,8 +599,14 @@ const MapScreen: React.FC = () => {
         <CompassIndicator size={50} rotation={0} onPress={handleCompassPress} />
       </View>
 
+      {/* Parking Legend */}
+      <ParkingLegend 
+        isVisible={showLegend} 
+        onToggle={() => setShowLegend(!showLegend)} 
+      />
+
       {/* Location Button */}
-      <TouchableOpacity style={styles.mapLocationButton} onPress={getCurrentLocation}>
+      <TouchableOpacity style={styles.mapLocationButton} onPress={zoomToUserLocation}>
         <Ionicons name="navigate" size={24} color={theme.colors.error} />
       </TouchableOpacity>
 
@@ -586,6 +669,18 @@ const MapScreen: React.FC = () => {
          onClose={() => setShowSearchDrawer(false)}
          onSelectParking={handleSelectParking}
        />
+
+      {/* Parking Info Popup */}
+      <ParkingInfoPopup
+        visible={showParkingInfo}
+        parking={selectedParking}
+        onClose={() => {
+          setShowParkingInfo(false);
+          setHighlightedParkingId(null);
+        }}
+        onBook={handleBookParking}
+        onNavigate={handleNavigateToParking}
+      />
     </View>
   );
 };

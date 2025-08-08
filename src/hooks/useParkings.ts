@@ -27,6 +27,18 @@ export const useParkings = () => {
     }
   );
 
+  console.log('🚀 useParkings hook:', {
+    loading,
+    error: error?.message,
+    dataExists: !!data,
+    parkingsCount: data?.parkings?.length || 0,
+    rawData: data
+  });
+
+  if (error) {
+    console.error('❌ GraphQL Error in useParkings:', error);
+  }
+
   return {
     parkings: data?.parkings || [],
     loading,
@@ -210,11 +222,28 @@ export const parseCoordinates = (coordinates: string | number[] | undefined): { 
     let lat: number, lng: number;
 
     if (Array.isArray(coordinates)) {
-      // Handle number array format [lng, lat] - GeoJSON standard
-      [lng, lat] = coordinates;
+      // Handle number array format - could be [lat, lng] or [lng, lat]
+      // Try to determine format based on typical Zambia coordinates
+      const [first, second] = coordinates;
+      if (first >= -20 && first <= -8 && second >= 22 && second <= 34) {
+        // This looks like [lat, lng] format (Zambia latitude range: -8 to -20, longitude: 22-34)
+        [lat, lng] = coordinates;
+      } else {
+        // Assume GeoJSON format [lng, lat]
+        [lng, lat] = coordinates;
+      }
     } else if (typeof coordinates === 'string') {
-      // Handle string format "lng,lat" - GeoJSON standard
-      [lng, lat] = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+      // Handle string format - could be "lat,lng" or "lng,lat"
+      const parts = coordinates.split(',').map(coord => parseFloat(coord.trim()));
+      const [first, second] = parts;
+      
+      if (first >= -20 && first <= -8 && second >= 22 && second <= 34) {
+        // This looks like "lat,lng" format (Zambia coordinates)
+        [lat, lng] = parts;
+      } else {
+        // Assume GeoJSON format "lng,lat"
+        [lng, lat] = parts;
+      }
     } else {
       console.warn('Invalid coordinates format:', coordinates);
       return null;
@@ -224,7 +253,6 @@ export const parseCoordinates = (coordinates: string | number[] | undefined): { 
       console.warn('Invalid coordinates values:', { lat, lng });
       return null;
     }
-    
     return {
       latitude: lat,
       longitude: lng,
