@@ -15,6 +15,11 @@ import AuthNavigator from './AuthNavigator';
 
 const Drawer = createDrawerNavigator();
 
+// Dummy component for logout navigation item
+const LogoutComponent: React.FC = () => {
+  return null;
+};
+
 const AppNavigator: React.FC = () => {
   const theme = useTheme();
   const { isAuthenticated, isLoading, signOut } = useAuth();
@@ -148,7 +153,7 @@ const AppNavigator: React.FC = () => {
           />
           <Drawer.Screen 
             name="Logout" 
-            component={() => null} 
+            component={LogoutComponent} 
             options={{
               title: 'Logout',
               drawerIcon: ({ color, size }) => (

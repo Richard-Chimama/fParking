@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { MapView, Marker } from 'expo-maps';
+import { AppleMaps, GoogleMaps } from 'expo-maps';
+import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeProvider';
 import { ParkingSpot, Parking } from '../types';
@@ -21,21 +22,48 @@ interface ParkingMapProps {
     longitude: number;
   };
   useDatabase?: boolean;
-  mapRef?: React.RefObject<any>;
 }
 
-const ParkingMap: React.FC<ParkingMapProps> = ({
-  initialRegion,
-  parkingSpots: propParkingSpots,
-  onMarkerPress,
-  showUserLocation = true,
-  carMarkerCoordinate,
-  useDatabase = true,
-  mapRef,
-}) => {
+export interface ParkingMapRef {
+  animateToRegion: (region: {
+    latitude: number;
+    longitude: number;
+    latitudeDelta?: number;
+    longitudeDelta?: number;
+  }) => void;
+}
+
+const ParkingMap = forwardRef<ParkingMapRef, ParkingMapProps>((
+  {
+    initialRegion,
+    parkingSpots: propParkingSpots,
+    onMarkerPress,
+    showUserLocation = true,
+    carMarkerCoordinate,
+    useDatabase = true,
+  },
+  ref
+) => {
   const theme = useTheme();
   const { parkings, loading, error } = useParkings();
   const [processedParkings, setProcessedParkings] = useState<ParkingSpot[]>([]);
+  const [cameraPosition, setCameraPosition] = useState(() => {
+    const region = initialRegion || {
+      latitude: -15.3875,
+      longitude: 28.3228,
+      latitudeDelta: 8.0,
+      longitudeDelta: 8.0,
+    };
+    return {
+      coordinates: {
+        latitude: region.latitude,
+        longitude: region.longitude,
+      },
+      zoom: 15,
+      bearing: 0,
+      tilt: 0
+    };
+  });
 
   // Zambia coordinates - centered on Lusaka
   const zambiaRegion = {
@@ -47,6 +75,26 @@ const ParkingMap: React.FC<ParkingMapProps> = ({
 
   const currentRegion = initialRegion || zambiaRegion;
   const currentParkingSpots = useDatabase ? processedParkings : (propParkingSpots || []);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    animateToRegion: (region: {
+      latitude: number;
+      longitude: number;
+      latitudeDelta?: number;
+      longitudeDelta?: number;
+    }) => {
+      setCameraPosition({
+        coordinates: {
+          latitude: region.latitude,
+          longitude: region.longitude,
+        },
+        zoom: region.latitudeDelta ? Math.max(1, 20 - region.latitudeDelta * 2) : 15,
+        bearing: 0,
+        tilt: 0
+      });
+    },
+  }), []);
 
   // Convert database parkings to ParkingSpot format
   useEffect(() => {
@@ -104,34 +152,7 @@ const ParkingMap: React.FC<ParkingMapProps> = ({
       fontSize: 14,
       textAlign: 'center',
     },
-    marker: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.colors.surface,
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 3,
-      borderColor: theme.colors.primary,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 4,
-      elevation: 5,
-    },
-    parkingMarker: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      backgroundColor: theme.colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 3,
-      elevation: 4,
-    },
+
   });
 
   const styles = createStyles(theme);
@@ -161,46 +182,62 @@ const ParkingMap: React.FC<ParkingMapProps> = ({
     );
   }
 
-  return (
-    <MapView
-      ref={mapRef}
-      style={styles.map}
-      initialRegion={currentRegion}
-      showsUserLocation={showUserLocation}
-      showsMyLocationButton={false}
-      showsCompass={false}
-    >
-      {/* Car marker */}
-      {carMarkerCoordinate && (
-        <Marker coordinate={carMarkerCoordinate}>
-          <View style={styles.marker}>
-            <Ionicons name="car" size={20} color={theme.colors.primary} />
-          </View>
-        </Marker>
-      )}
+  // Create markers array for expo-maps
+  const markers = [
+    ...(carMarkerCoordinate ? [{
+      id: 'car-marker',
+      coordinate: carMarkerCoordinate,
+      title: 'Your Car',
+      description: 'Car location'
+    }] : []),
+    ...currentParkingSpots.map((spot) => ({
+      id: spot.id,
+      coordinate: {
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+      },
+      title: spot.name || 'Parking Spot',
+      description: spot.isAvailable ? 'Available' : 'Occupied'
+    }))
+  ];
 
-      {/* Parking spots */}
-      {currentParkingSpots.map((spot) => (
-        <Marker
-          key={spot.id}
-          coordinate={{
-            latitude: spot.latitude,
-            longitude: spot.longitude,
-          }}
-          onPress={() => onMarkerPress && onMarkerPress(spot)}
-        >
-          <View style={[
-            styles.parkingMarker,
-            { backgroundColor: spot.isAvailable ? theme.colors.primary : theme.colors.error }
-          ]}>
-            <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
-              P
-            </Text>
-          </View>
-        </Marker>
-      ))}
-    </MapView>
-  );
-};
+
+
+  if (Platform.OS === 'ios') {
+    return (
+      <AppleMaps.View
+        style={styles.map}
+        cameraPosition={cameraPosition}
+        markers={markers}
+        onMarkerClick={(marker) => {
+          const spot = currentParkingSpots.find(s => s.id === marker.id);
+          if (spot && onMarkerPress) {
+            onMarkerPress(spot);
+          }
+        }}
+      />
+    );
+  } else if (Platform.OS === 'android') {
+    return (
+      <GoogleMaps.View
+        style={styles.map}
+        cameraPosition={cameraPosition}
+        markers={markers}
+        onMarkerClick={(marker) => {
+          const spot = currentParkingSpots.find(s => s.id === marker.id);
+          if (spot && onMarkerPress) {
+            onMarkerPress(spot);
+          }
+        }}
+      />
+    );
+  } else {
+    return (
+      <View style={styles.map}>
+        <Text>Maps are only available on Android and iOS</Text>
+      </View>
+    );
+  }
+});
 
 export default ParkingMap;

@@ -18,7 +18,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '../theme/ThemeProvider';
 import { ParkingSpot, Parking } from '../types';
-import ParkingMap from '../components/ParkingMap';
+import ParkingMap, { ParkingMapRef } from '../components/ParkingMap';
 import SearchDrawer from '../components/SearchDrawer';
 import CompassIndicator from '../components/CompassIndicator';
 import { useParkings } from '../hooks/useParkings';
@@ -37,7 +37,7 @@ const MapScreen: React.FC = () => {
   const [showSearchDrawer, setShowSearchDrawer] = useState(false);
   
   // Map reference for controlling map view
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<ParkingMapRef>(null);
   
   // Get parking data from database
   const { parkings, loading: parkingsLoading } = useParkings();
@@ -256,7 +256,7 @@ const MapScreen: React.FC = () => {
         latitudeDelta: 8.0,
         longitudeDelta: 8.0,
       };
-      mapRef.current.animateToRegion(zambiaRegion, 1000);
+      mapRef.current.animateToRegion(zambiaRegion);
     }
   };
 
@@ -474,7 +474,7 @@ const MapScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Map */}
       <ParkingMap
-        mapRef={mapRef}
+        ref={mapRef}
         onMarkerPress={handleMarkerPress}
         showUserLocation={true}
         useDatabase={true}

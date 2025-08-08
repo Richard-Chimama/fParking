@@ -20,8 +20,7 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: 'com.fparking.app',
-    // On EAS builder, GOOGLE_SERVICE_INFO_PLIST is a file env var path.
-    // Locally, fall back to gitignored file if present.
+    // For iOS, use environment variable on EAS, local file for development
     googleServicesFile:
       process.env.GOOGLE_SERVICE_INFO_PLIST ?? './GoogleService-Info.plist',
     infoPlist: {
@@ -35,8 +34,7 @@ const config: ExpoConfig = {
     },
     edgeToEdgeEnabled: true,
     package: 'com.fparking.app',
-    // On EAS builder, GOOGLE_SERVICES_JSON is a file env var path.
-    // Locally, fall back to gitignored file if present.
+    // For Android, use environment variable on EAS, local file for development
     googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
   },
   web: {

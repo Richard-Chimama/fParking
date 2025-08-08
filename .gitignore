@@ -2,6 +2,8 @@
 
 # dependencies
 node_modules/
+android/
+ios/
 
 # Expo
 .expo/
@@ -46,5 +48,7 @@ config.json
 
 # Firebase configuration (contains sensitive data)
 firebase.config.js
-google-services.json
+# Note: google-services.json is included for local builds
+# GoogleService-Info.plist is gitignored as it contains sensitive iOS data
 GoogleService-Info.plist
+config.json
