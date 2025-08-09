@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeProvider';
@@ -21,7 +22,7 @@ interface SignInScreenProps {
 
 const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
   const theme = useTheme();
-  const { signIn, signInWithPhone } = useAuth();
+  const { signIn, signInWithPhone, isAuthenticated } = useAuth();
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +30,15 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
   const [confirmResult, setConfirmResult] = useState<FirebaseAuthTypes.ConfirmationResult | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [isPhoneAuth, setIsPhoneAuth] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // Monitor authentication state
+  useEffect(() => {
+    if (isAuthenticated && isAuthenticating) {
+      setIsAuthenticating(false);
+      // User is now authenticated and will be redirected automatically
+    }
+  }, [isAuthenticated, isAuthenticating]);
 
   const isValidEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -78,11 +88,38 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
         }
       } else {
         // Handle email authentication
-        await signIn(emailOrPhone.trim(), password);
-        Alert.alert('Success', 'Login successful!');
-        // Navigation will be handled automatically by the AuthContext
+        console.log('📱 SignInScreen: Starting email authentication for:', emailOrPhone.trim());
+        const result = await signIn(emailOrPhone.trim(), password);
+        console.log('📱 SignInScreen: Authentication result received:', {
+          success: result.success,
+          requiresRegistration: result.requiresRegistration,
+          hasError: !!result.error
+        });
+        
+        if (result.success) {
+          console.log('🎉 SignInScreen: Authentication successful, setting isAuthenticating state');
+          setIsAuthenticating(true);
+          Alert.alert('Success', 'Login successful! Welcome back! Redirecting to app...', [
+            { text: 'OK' }
+          ]);
+          // Navigation will be handled automatically by the AuthContext
+          // The Firebase token is automatically stored and user gets access to protected screens
+        } else if (result.requiresRegistration) {
+          Alert.alert(
+            'Registration Required', 
+            'Your account exists in Firebase but needs to be registered in our system. Please contact support or try signing up again.',
+            [
+              { text: 'OK' },
+              { text: 'Go to Sign Up', onPress: () => navigation.navigate('SignUp') }
+            ]
+          );
+        } else {
+          console.log('❌ SignInScreen: Authentication failed with error:', result.error);
+          throw new Error(result.error || 'Authentication failed');
+        }
       }
     } catch (error: any) {
+      console.log('❌ SignInScreen: Caught error during authentication:', error.message);
       let errorMessage = 'Login failed';
       if (error.message === 'PHONE_AUTH_REQUIRED') {
         // This shouldn't happen now, but keeping for safety
@@ -101,6 +138,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
       }
       Alert.alert('Error', errorMessage);
     } finally {
+      console.log('🏁 SignInScreen: Setting isLoading to false');
       setIsLoading(false);
     }
   };
@@ -118,14 +156,31 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
 
     setIsLoading(true);
     try {
-      await confirmResult.confirm(verificationCode.trim());
-      Alert.alert('Success', 'Phone verification successful!');
-      // Reset state
-      setIsPhoneAuth(false);
-      setConfirmResult(null);
-      setVerificationCode('');
+      const credential = await confirmResult.confirm(verificationCode.trim());
+      
+      if (credential && credential.user) {
+        setIsAuthenticating(true);
+        Alert.alert('Success', 'Phone verification successful! You are now signed in. Redirecting to app...', [
+          { text: 'OK' }
+        ]);
+        // Firebase token is automatically stored by AuthContext
+        // User will get access to protected screens automatically
+        
+        // Reset state
+        setIsPhoneAuth(false);
+        setConfirmResult(null);
+        setVerificationCode('');
+      } else {
+        Alert.alert('Error', 'Verification failed. Please try again.');
+      }
     } catch (error: any) {
-      Alert.alert('Error', 'Invalid verification code. Please try again.');
+      let errorMessage = 'Invalid verification code. Please try again.';
+      if (error.code === 'auth/invalid-verification-code') {
+        errorMessage = 'The verification code is invalid. Please check and try again.';
+      } else if (error.code === 'auth/code-expired') {
+        errorMessage = 'The verification code has expired. Please request a new one.';
+      }
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -310,6 +365,21 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ navigation }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
+      
+      {/* Authentication Success Overlay */}
+      {isAuthenticating && (
+        <View style={styles.authOverlay}>
+          <View style={styles.authContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.authText, { color: theme.colors.text }]}>
+              Authenticating...
+            </Text>
+            <Text style={[styles.authSubText, { color: theme.colors.textSecondary }]}>
+              Redirecting to app
+            </Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -433,6 +503,43 @@ const styles = StyleSheet.create({
   signUpLink: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  authOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  authContainer: {
+    backgroundColor: '#FFFFFF',
+    padding: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    minWidth: 200,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  authText: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 15,
+    textAlign: 'center',
+  },
+  authSubText: {
+    fontSize: 14,
+    marginTop: 5,
+    textAlign: 'center',
   },
 });
 

@@ -2,38 +2,21 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useLazyQuery } from '@apollo/client';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import { FIREBASE_REGISTER, VERIFY_FIREBASE_TOKEN, SYNC_FIREBASE_USER, FIREBASE_LOGIN, LINK_FIREBASE_ACCOUNT } from '../graphql/mutations';
-import { GET_FIREBASE_USER_INFO } from '../graphql/queries';
+import { VERIFY_FIREBASE_TOKEN, FIREBASE_LOGIN, FIREBASE_REGISTER } from '../graphql/mutations';
+import { GET_ME } from '../graphql/queries';
 
 // Type alias for compatibility
 type FirebaseUser = FirebaseAuthTypes.User;
 
 interface User {
   id: string;
-  firstName: string;
-  lastName: string;
   email: string;
   phoneNumber: string;
+  firstName: string;
+  lastName: string;
   role: string;
   isVerified: boolean;
-  isActive: boolean;
-  profilePicture?: string;
-  dateOfBirth?: string;
-  lastLoginAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
-    country: string;
-  };
-  preferences?: {
-    notifications: boolean;
-    emailNotifications: boolean;
-    smsNotifications: boolean;
-  };
+  firebaseUid: string;
 }
 
 interface AuthContextType {
@@ -41,11 +24,12 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  signIn: (emailOrPhone: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<any>;
   signInWithPhone: (phoneNumber: string) => Promise<any>;
-  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, phoneNumber?: string) => Promise<any>;
   signOut: () => Promise<void>;
-  updateUser: (user: User) => Promise<void>;
+  refreshToken: () => Promise<any>;
+  resendEmailVerification: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -59,164 +43,208 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // GraphQL mutations
-  const [firebaseRegisterUser] = useMutation(FIREBASE_REGISTER);
+  // GraphQL mutations and queries
   const [verifyFirebaseToken] = useMutation(VERIFY_FIREBASE_TOKEN);
-  const [syncFirebaseUser] = useMutation(SYNC_FIREBASE_USER);
-  const [firebaseLoginUser] = useMutation(FIREBASE_LOGIN);
-  const [linkFirebaseAccount] = useMutation(LINK_FIREBASE_ACCOUNT);
-  const [getFirebaseUserInfo] = useLazyQuery(GET_FIREBASE_USER_INFO);
+  const [firebaseLogin] = useMutation(FIREBASE_LOGIN);
+  const [firebaseRegister] = useMutation(FIREBASE_REGISTER);
 
-  const isAuthenticated = !!firebaseUser;
+  const [getMe] = useLazyQuery(GET_ME);
+
+  const isAuthenticated = !!firebaseUser && !!user;
 
   // Listen to Firebase auth state changes
   useEffect(() => {
+    console.log('🔥 AuthContext: Setting up Firebase auth state listener');
     const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
+      console.log('🔥 AuthContext: Firebase auth state changed', {
+        hasUser: !!firebaseUser,
+        uid: firebaseUser?.uid,
+        email: firebaseUser?.email,
+        emailVerified: firebaseUser?.emailVerified
+      });
+      
       setFirebaseUser(firebaseUser);
       if (firebaseUser) {
-        // Load or create user profile data
-        await loadUserProfile(firebaseUser);
+        try {
+          console.log('🔑 AuthContext: Getting Firebase ID token...');
+          // Get Firebase ID token and store it
+          const idToken = await firebaseUser.getIdToken();
+          console.log('🔑 AuthContext: Firebase ID token obtained, storing in AsyncStorage');
+          await AsyncStorage.setItem('firebaseToken', idToken);
+          
+          console.log('🌐 AuthContext: Calling backend getMe query...');
+          // Try to get current user from backend
+          const { data } = await getMe();
+          console.log('🌐 AuthContext: Backend getMe response:', { hasData: !!data, hasMe: !!data?.me });
+          
+          if (data?.me) {
+            console.log('✅ AuthContext: User found in backend, setting user state');
+            setUser(data.me);
+          } else {
+            console.log('❌ AuthContext: User not found in backend, might need registration');
+            // User might need to be registered in backend
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('❌ AuthContext: Error handling Firebase auth state change:', error);
+          setUser(null);
+        }
       } else {
+        console.log('🚪 AuthContext: No Firebase user, clearing state');
         setUser(null);
+        await AsyncStorage.removeItem('firebaseToken');
       }
+      console.log('✅ AuthContext: Setting isLoading to false');
       setIsLoading(false);
     });
 
     return unsubscribe;
-  }, []);
+  }, [getMe]);
 
-  const loadUserProfile = async (firebaseUser: FirebaseUser) => {
+  // Refresh Firebase token
+  const refreshToken = async () => {
     try {
-      const storedUser = await AsyncStorage.getItem(`user_${firebaseUser.uid}`);
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      } else {
-        // Create a basic user profile from Firebase user data
-        const basicUser: User = {
-          id: firebaseUser.uid,
-          firstName: firebaseUser.displayName?.split(' ')[0] || '',
-          lastName: firebaseUser.displayName?.split(' ')[1] || '',
-          email: firebaseUser.email || '',
-          phoneNumber: firebaseUser.phoneNumber || '',
-          role: 'user',
-          isVerified: firebaseUser.emailVerified,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        setUser(basicUser);
-        await AsyncStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(basicUser));
+      const currentUser = auth().currentUser;
+      if (!currentUser) {
+        throw new Error('No authenticated user');
       }
-    } catch (error) {
-      console.error('Error loading user profile:', error);
+
+      const idToken = await currentUser.getIdToken(true); // Force refresh
+      await AsyncStorage.setItem('firebaseToken', idToken);
+
+      return { success: true, token: idToken };
+    } catch (error: unknown) {
+      console.error('Token refresh error:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Token refresh failed' };
     }
   };
 
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
 
-  const isValidPhoneNumber = (phone: string) => {
-    // Basic phone number validation (starts with + and contains only digits)
-    const phoneRegex = /^\+[1-9]\d{1,14}$/;
-    return phoneRegex.test(phone);
-  };
 
-  const signIn = async (identifier: string, password: string) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      // 1. Firebase auth
-      if (isValidEmail(identifier)) {
-        // Email authentication
-        await auth().signInWithEmailAndPassword(identifier, password);
-      } else if (isValidPhoneNumber(identifier)) {
-        // For phone number login, we need to construct the Firebase email
-        const firebaseEmail = `${identifier.replace(/[^0-9]/g, '')}@placeholder.com`;
-        await auth().signInWithEmailAndPassword(firebaseEmail, password);
-      } else {
-        throw new Error('Invalid email or phone number format');
+      console.log('🚀 AuthContext.signIn: Starting sign-in process for:', email);
+      setIsLoading(true);
+      
+      console.log('🔥 AuthContext.signIn: Step 1 - Authenticating with Firebase...');
+      // 1. Authenticate with Firebase
+      const userCredential = await auth().signInWithEmailAndPassword(email, password);
+      console.log('✅ AuthContext.signIn: Firebase authentication successful', {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        emailVerified: userCredential.user.emailVerified
+      });
+      
+      console.log('📧 AuthContext.signIn: Step 2 - Checking email verification...');
+      // 2. Check if email is verified
+      if (!userCredential.user.emailVerified) {
+        console.log('❌ AuthContext.signIn: Email not verified');
+        throw new Error('Please verify your email before signing in');
       }
+      console.log('✅ AuthContext.signIn: Email is verified');
       
-      const firebaseUser = auth().currentUser;
-      if (!firebaseUser) {
-        throw new Error('Firebase authentication failed');
-      }
+      console.log('🔑 AuthContext.signIn: Step 3 - Getting Firebase ID token...');
+      // 3. Get Firebase ID token
+      const idToken = await userCredential.user.getIdToken();
+      console.log('✅ AuthContext.signIn: Firebase ID token obtained');
       
-      // 2. Get ID token
-      const idToken = await firebaseUser.getIdToken();
+      console.log('💾 AuthContext.signIn: Step 4 - Storing Firebase token in AsyncStorage...');
+      // 4. Store Firebase token
+      await AsyncStorage.setItem('firebaseToken', idToken);
+      console.log('✅ AuthContext.signIn: Firebase token stored');
       
-      // 3. Verify with backend
-      try {
-        const verifyResult = await verifyFirebaseToken({ 
+      console.log('🌐 AuthContext.signIn: Step 5 - Calling verifyFirebaseToken backend mutation...');
+      // 5. Verify token and get user info
+      const verifyResult = await verifyFirebaseToken({
+        variables: { input: { idToken } },
+      });
+      console.log('🌐 AuthContext.signIn: verifyFirebaseToken response received:', {
+        success: verifyResult.data?.verifyFirebaseToken?.success,
+        hasDatabaseUser: !!verifyResult.data?.verifyFirebaseToken?.databaseUser,
+        hasFirebaseUser: !!verifyResult.data?.verifyFirebaseToken?.firebaseUser
+      });
+      
+      const { success, databaseUser, firebaseUser: fbUser, message } = verifyResult.data.verifyFirebaseToken;
+      
+      if (success && databaseUser) {
+        console.log('✅ AuthContext.signIn: User exists in database, proceeding with firebaseLogin...');
+        // User exists in database, login with Firebase UID
+        const loginResult = await firebaseLogin({
           variables: { 
-            input: { idToken } 
-          } 
+            input: { 
+              firebaseUid: userCredential.user.uid,
+              email: userCredential.user.email,
+              phoneNumber: userCredential.user.phoneNumber
+            }
+          },
+        });
+        console.log('🌐 AuthContext.signIn: firebaseLogin response received:', {
+          success: loginResult.data?.firebaseLogin?.success,
+          hasUser: !!loginResult.data?.firebaseLogin?.user,
+          hasToken: !!loginResult.data?.firebaseLogin?.token
         });
         
-        if (verifyResult.data?.verifyFirebaseToken?.success) {
-          console.log('Firebase token verified successfully');
-          
-          // 4. Try to login with Firebase credentials
-          const loginResult = await firebaseLoginUser({
-            variables: {
-              input: {
-                firebaseUid: firebaseUser.uid,
-                email: isValidEmail(identifier) ? identifier : null,
-                phoneNumber: isValidPhoneNumber(identifier) ? identifier : null
-              }
-            }
-          });
-          
-          if (loginResult.data?.firebaseLogin?.success) {
-            // Store the backend auth token
-            if (loginResult.data.firebaseLogin.token) {
-              await AsyncStorage.setItem('authToken', loginResult.data.firebaseLogin.token);
-            }
-            
-            // 5. Get user info from Firebase Admin
-            const userInfoResult = await getFirebaseUserInfo({
-              variables: { firebaseUid: firebaseUser.uid }
-            });
-            
-            if (userInfoResult?.data?.getFirebaseUserInfo) {
-              const firebaseUserData = userInfoResult.data.getFirebaseUserInfo;
-              const userData: User = {
-                id: firebaseUserData.uid,
-                firstName: firebaseUserData.displayName?.split(' ')[0] || '',
-                lastName: firebaseUserData.displayName?.split(' ')[1] || '',
-                email: firebaseUserData.email || '',
-                phoneNumber: firebaseUserData.phoneNumber || '',
-                role: 'user',
-                isVerified: firebaseUserData.emailVerified,
-                isActive: !firebaseUserData.disabled,
-                createdAt: firebaseUserData.creationTime || new Date().toISOString(),
-                updatedAt: firebaseUserData.lastSignInTime || new Date().toISOString(),
-              };
-              setUser(userData);
-              await AsyncStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(userData));
-            }
-            
-            console.log('User successfully authenticated with backend');
-          } else {
-            console.warn('Backend login failed:', loginResult.data?.firebaseLogin?.message);
-            // If login fails, try to sync the user
-            await syncFirebaseUser({ variables: { firebaseUid: firebaseUser.uid } });
-          }
+        const loginData = loginResult.data.firebaseLogin;
+        if (loginData.success && loginData.user) {
+          console.log('💾 AuthContext.signIn: Storing session token and setting user state...');
+          await AsyncStorage.setItem('sessionToken', loginData.token);
+          setUser(loginData.user);
+          console.log('🎉 AuthContext.signIn: User successfully authenticated and logged in!');
+          return { success: true, user: loginData.user };
         } else {
-          console.warn('Backend token verification failed:', verifyResult.data?.verifyFirebaseToken?.message);
+          console.log('❌ AuthContext.signIn: firebaseLogin failed:', loginData.message);
+          throw new Error(loginData.message || 'Login failed');
         }
-      } catch (backendError) {
-        console.error('Backend authentication error:', backendError);
-        // Continue with Firebase-only authentication if backend fails
+      } else if (success && fbUser && !databaseUser) {
+        // User exists in Firebase but not in database - needs registration
+        console.log('⚠️ AuthContext.signIn: User requires registration in backend');
+        return { 
+          success: false, 
+          requiresRegistration: true,
+          firebaseUser: userCredential.user,
+          error: 'User not registered. Please complete registration.' 
+        };
+      } else {
+        console.log('❌ AuthContext.signIn: Authentication failed:', message);
+        throw new Error(message || 'Authentication failed. Please check your credentials.');
+      }
+    } catch (error: unknown) {
+      console.error('❌ AuthContext.signIn: Error during sign-in process:', error);
+      
+      let errorMessage = 'An error occurred during sign in';
+      
+      // Provide user-friendly error messages
+      if (error && typeof error === 'object' && 'code' in error) {
+        const firebaseError = error as { code: string; message?: string };
+        console.log('🔥 AuthContext.signIn: Firebase error code:', firebaseError.code);
+        if (firebaseError.code === 'auth/user-not-found') {
+          errorMessage = 'No account found with this email address. Please sign up first.';
+        } else if (firebaseError.code === 'auth/wrong-password') {
+          errorMessage = 'Incorrect password. Please try again.';
+        } else if (firebaseError.code === 'auth/invalid-email') {
+          errorMessage = 'Invalid email address format.';
+        } else if (firebaseError.code === 'auth/user-disabled') {
+          errorMessage = 'This account has been disabled. Please contact support.';
+        } else if (firebaseError.code === 'auth/too-many-requests') {
+          errorMessage = 'Too many failed attempts. Please try again later.';
+        } else if (firebaseError.message) {
+          errorMessage = firebaseError.message;
+        } else {
+          console.log('🔥 AuthContext.signIn: Other Firebase error:', firebaseError.message);
+          errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        }
+      } else {
+        console.log('❌ AuthContext.signIn: Non-Firebase error:', error);
+        errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       }
       
-      // User state will be updated automatically via onAuthStateChanged
-    } catch (error) {
-      console.error('Error signing in:', error);
-      throw error;
+      console.log('❌ AuthContext.signIn: Returning error result:', errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      console.log('🏁 AuthContext.signIn: Setting isLoading to false');
+      setIsLoading(false);
     }
   };
-
   const signInWithPhone = async (phoneNumber: string) => {
     try {
       // React Native Firebase phone authentication
@@ -228,97 +256,119 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const signUp = async (identifier: string, password: string, firstName: string, lastName: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, phoneNumber?: string) => {
     try {
-      // Determine if identifier is email or phone
-      const isEmail = identifier.includes('@');
-      const email = isEmail ? identifier : '';
-      const phoneNumber = !isEmail ? identifier : '';
+      setIsLoading(true);
       
-      // 1. Firebase auth - Create Firebase user with email (required for Firebase)
-      // If phone number is provided, we'll use a placeholder email for Firebase
-      const firebaseEmail = email || `${phoneNumber.replace(/[^0-9]/g, '')}@placeholder.com`;
-      const userCredential = await auth().createUserWithEmailAndPassword(firebaseEmail, password);
+      // 1. Create Firebase user
+      const userCredential = await auth().createUserWithEmailAndPassword(email, password);
       
-      // Update the user's display name
+      // 2. Send email verification
+      await userCredential.user.sendEmailVerification();
+      
+      // 3. Update Firebase user profile
       await userCredential.user.updateProfile({
         displayName: `${firstName} ${lastName}`,
       });
       
-      // 2. Get ID token
+      // 4. Get Firebase ID token
       const idToken = await userCredential.user.getIdToken();
       
-      // 3. Register user with backend (this creates the user in database)
-      try {
-        const { data } = await firebaseRegisterUser({
-          variables: {
-            input: {
-              firebaseUid: userCredential.user.uid,
-              firstName,
-              lastName,
-              email: email || null,
-              phoneNumber: phoneNumber || null
-            }
-          }
-        });
-        
-        if (data?.firebaseRegister?.success) {
-          // Store the backend auth token if provided
-          if (data.firebaseRegister.token) {
-            await AsyncStorage.setItem('authToken', data.firebaseRegister.token);
-          }
-          
-          // Create user object from registration data
-          const userData: User = {
-            id: userCredential.user.uid,
+      // 5. Store Firebase token
+      await AsyncStorage.setItem('firebaseToken', idToken);
+      
+      // 6. Register with backend
+      const result = await firebaseRegister({
+        variables: {
+          input: {
+            firebaseUid: userCredential.user.uid,
             firstName,
             lastName,
-            email: email || '',
-            phoneNumber: phoneNumber || '',
-            role: 'user',
-            isVerified: userCredential.user.emailVerified,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          setUser(userData);
-          await AsyncStorage.setItem(`user_${userCredential.user.uid}`, JSON.stringify(userData));
-          
-          console.log('User successfully registered with backend:', data.firebaseRegister.message);
-        } else {
-          console.warn('Backend registration failed:', data?.firebaseRegister?.message);
+            email,
+            phoneNumber
+          }
         }
-      } catch (backendError) {
-        console.error('Backend registration error:', backendError);
-        // Continue with Firebase-only registration if backend fails
+      });
+      
+      const { success, user, token, message, error } = result.data.firebaseRegister;
+      
+      if (success && user) {
+        await AsyncStorage.setItem('sessionToken', token);
+        setUser(user);
+        console.log('User successfully registered and verification email sent');
+        return { 
+          success: true, 
+          message: 'Account created successfully! Please check your email to verify your account before signing in.',
+          user 
+        };
+      } else {
+        // If backend registration fails, delete the Firebase user
+        await userCredential.user.delete();
+        throw new Error(error || message || 'Registration failed. Please try again.');
+      }
+    } catch (error: unknown) {
+      console.error('Error signing up:', error);
+      
+      let errorMessage = 'An error occurred during registration';
+      
+      // Provide user-friendly error messages
+      if (error && typeof error === 'object' && 'code' in error) {
+        const firebaseError = error as { code: string; message?: string };
+        if (firebaseError.code === 'auth/email-already-in-use') {
+          errorMessage = 'An account with this email already exists. Please sign in instead.';
+        } else if (firebaseError.code === 'auth/weak-password') {
+          errorMessage = 'Password is too weak. Please choose a stronger password.';
+        } else if (firebaseError.code === 'auth/invalid-email') {
+          errorMessage = 'Invalid email address format.';
+        } else if (firebaseError.code === 'auth/operation-not-allowed') {
+          errorMessage = 'Email/password accounts are not enabled. Please contact support.';
+        } else if (firebaseError.message) {
+          errorMessage = firebaseError.message;
+        }
+      } else if (error instanceof Error && error.message) {
+        errorMessage = error.message;
       }
       
-      // User state will be updated automatically via onAuthStateChanged
-    } catch (error) {
-      console.error('Error signing up:', error);
-      throw error;
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const signOut = async () => {
     try {
+      // Clear stored tokens
+      await AsyncStorage.removeItem('firebaseToken');
+      
+      // Sign out from Firebase
       await auth().signOut();
-      // User state will be updated automatically via onAuthStateChanged
+      
+      // Clear user state
+      setUser(null);
+      
+      console.log('User successfully signed out');
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
     }
   };
 
-  const updateUser = async (userData: User) => {
-    setUser(userData);
-    // Update AsyncStorage
-    if (firebaseUser) {
-      try {
-        await AsyncStorage.setItem(`user_${firebaseUser.uid}`, JSON.stringify(userData));
-      } catch (error) {
-        console.error('Error updating user data:', error);
+  const resendEmailVerification = async () => {
+    try {
+      const currentUser = auth().currentUser;
+      if (!currentUser) {
+        throw new Error('No authenticated user found');
       }
+      
+      if (currentUser.emailVerified) {
+        throw new Error('Email is already verified');
+      }
+      
+      await currentUser.sendEmailVerification();
+      console.log('Verification email sent successfully');
+    } catch (error) {
+      console.error('Error sending verification email:', error);
+      throw error;
     }
   };
 
@@ -331,7 +381,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signInWithPhone,
     signUp,
     signOut,
-    updateUser,
+    refreshToken,
+    resendEmailVerification,
   };
 
   return (

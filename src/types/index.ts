@@ -270,6 +270,8 @@ export interface Vehicle {
   year: number;
   color: string;
   licensePlate: string;
+  vehicleType: string;
+  isActive: boolean;
   isDefault: boolean;
 }
 

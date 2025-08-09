@@ -37,42 +37,67 @@ export const LOGIN_WITH_VARIABLES = gql`
   }
 `;
 
-// New Firebase-based authentication mutations following the updated flow
-export const VERIFY_FIREBASE_TOKEN = gql`
-  mutation VerifyFirebaseToken($input: VerifyFirebaseTokenInput!) {
-    verifyFirebaseToken(input: $input) {
+// Firebase authentication mutations following the updated guide
+export const AUTHENTICATE_WITH_FIREBASE = gql`
+  mutation AuthenticateWithFirebase($input: FirebaseAuthInput!) {
+    authenticateWithFirebase(input: $input) {
       success
       message
+      token
+      user {
+        id
+        email
+        phoneNumber
+        firstName
+        lastName
+        role
+        isVerified
+        firebaseUid
+      }
+      requiresRegistration
+      error
     }
   }
 `;
 
-export const FIREBASE_LOGIN = gql`
-  mutation FirebaseLogin($input: FirebaseLoginInput!) {
-    firebaseLogin(input: $input) {
+export const REGISTER_WITH_FIREBASE = gql`
+  mutation RegisterWithFirebase($input: FirebaseRegisterInput!) {
+    registerWithFirebase(input: $input) {
       success
       message
       token
+      user {
+        id
+        email
+        phoneNumber
+        firstName
+        lastName
+        role
+        isVerified
+        firebaseUid
+      }
+      error
     }
   }
 `;
 
-export const SYNC_FIREBASE_USER = gql`
-  mutation SyncFirebaseUser($firebaseUid: String!) {
-    syncFirebaseUser(firebaseUid: $firebaseUid) {
+export const REFRESH_TOKEN = gql`
+  mutation RefreshToken($input: RefreshTokenInput!) {
+    refreshToken(input: $input) {
       success
       message
       token
-    }
-  }
-`;
-
-export const LINK_FIREBASE_ACCOUNT = gql`
-  mutation LinkFirebaseAccount($input: LinkFirebaseAccountInput!) {
-    linkFirebaseAccount(input: $input) {
-      success
-      message
-      token
+      user {
+        id
+        email
+        phoneNumber
+        firstName
+        lastName
+        role
+        isVerified
+        firebaseUid
+      }
+      error
     }
   }
 `;
@@ -113,12 +138,82 @@ export const REGISTER_WITH_VARIABLES = gql`
 `;
 
 // Keep FIREBASE_REGISTER for initial user creation during sign up
+// Legacy mutations - keeping for backward compatibility
+export const VERIFY_FIREBASE_TOKEN = gql`
+  mutation VerifyFirebaseToken($input: FirebaseTokenVerifyInput!) {
+    verifyFirebaseToken(input: $input) {
+      success
+      message
+      user {
+        id
+        email
+        firstName
+        lastName
+        phoneNumber
+        role
+        isVerified
+        firebaseUid
+      }
+    }
+  }
+`;
+
+export const FIREBASE_LOGIN = gql`
+  mutation FirebaseLogin($input: FirebaseLoginInput!) {
+    firebaseLogin(input: $input) {
+      success
+      message
+      token
+      user {
+        id
+        email
+        firstName
+        lastName
+        phoneNumber
+        role
+        isVerified
+        firebaseUid
+      }
+    }
+  }
+`;
+
+export const SYNC_FIREBASE_USER = gql`
+  mutation SyncFirebaseUser($firebaseUid: String!) {
+    syncFirebaseUser(firebaseUid: $firebaseUid) {
+      success
+      message
+      token
+    }
+  }
+`;
+
+export const LINK_FIREBASE_ACCOUNT = gql`
+  mutation LinkFirebaseAccount($input: LinkFirebaseAccountInput!) {
+    linkFirebaseAccount(input: $input) {
+      success
+      message
+      token
+    }
+  }
+`;
+
 export const FIREBASE_REGISTER = gql`
   mutation FirebaseRegister($input: FirebaseRegisterInput!) {
     firebaseRegister(input: $input) {
       success
       message
       token
+      user {
+        id
+        email
+        firstName
+        lastName
+        phoneNumber
+        role
+        isVerified
+        firebaseUid
+      }
     }
   }
 `;
@@ -208,18 +303,24 @@ export const COMPLETE_BOOKING = gql`
   }
 `;
 
-// Vehicle Mutations
 export const ADD_VEHICLE = gql`
-  mutation AddVehicle($input: AddVehicleInput!) {
-    addVehicle(input: $input) {
-      id
-      userId
-      make
-      model
-      year
-      color
-      licensePlate
-      isDefault
+  mutation CreateVehicle($input: CreateVehicleInput!) {
+    createVehicle(input: $input) {
+      success
+      message
+      vehicle {
+        id
+        make
+        model
+        year
+        color
+        licensePlate
+        isDefault
+        vehicleType
+        userId
+        createdAt
+        updatedAt
+      }
     }
   }
 `;
@@ -227,13 +328,21 @@ export const ADD_VEHICLE = gql`
 export const UPDATE_VEHICLE = gql`
   mutation UpdateVehicle($vehicleId: ID!, $input: UpdateVehicleInput!) {
     updateVehicle(id: $vehicleId, input: $input) {
-      id
-      make
-      model
-      year
-      color
-      licensePlate
-      isDefault
+      success
+      message
+      vehicle {
+        id
+        make
+        model
+        year
+        color
+        licensePlate
+        isDefault
+        vehicleType
+        userId
+        createdAt
+        updatedAt
+      }
     }
   }
 `;
@@ -241,6 +350,7 @@ export const UPDATE_VEHICLE = gql`
 export const DELETE_VEHICLE = gql`
   mutation DeleteVehicle($vehicleId: ID!) {
     deleteVehicle(id: $vehicleId) {
+      id
       success
       message
     }
@@ -252,6 +362,8 @@ export const SET_DEFAULT_VEHICLE = gql`
     setDefaultVehicle(id: $vehicleId) {
       id
       isDefault
+      success
+      message
     }
   }
 `;

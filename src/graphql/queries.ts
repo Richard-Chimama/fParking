@@ -1,6 +1,41 @@
-import { gql } from '@apollo/client';
+import { gql } from "@apollo/client";
 
 // User Queries
+export const VALIDATE_TOKEN = gql`
+  query ValidateToken($token: String!) {
+    validateToken(token: $token) {
+      valid
+      message
+      user {
+        id
+        email
+        phoneNumber
+        firstName
+        lastName
+        role
+        isVerified
+        firebaseUid
+      }
+      expiresAt
+    }
+  }
+`;
+
+export const CURRENT_USER = gql`
+  query CurrentUser {
+    currentUser {
+      id
+      email
+      phoneNumber
+      firstName
+      lastName
+      role
+      isVerified
+      firebaseUid
+    }
+  }
+`;
+
 export const GET_FIREBASE_USER_INFO = gql`
   query GetFirebaseUserInfo($firebaseUid: String!) {
     getFirebaseUserInfo(firebaseUid: $firebaseUid) {
@@ -147,8 +182,16 @@ export const GET_AVAILABLE_PARKINGS = gql`
 `;
 
 export const GET_NEARBY_PARKINGS = gql`
-  query GetNearbyParkings($maxDistance: Float!, $longitude: Float!, $latitude: Float!) {
-    nearbyParkings(maxDistance: $maxDistance, longitude: $longitude, latitude: $latitude) {
+  query GetNearbyParkings(
+    $maxDistance: Float!
+    $longitude: Float!
+    $latitude: Float!
+  ) {
+    nearbyParkings(
+      maxDistance: $maxDistance
+      longitude: $longitude
+      latitude: $latitude
+    ) {
       id
       name
       description
@@ -250,7 +293,30 @@ export const GET_USER_VEHICLES = gql`
       year
       color
       licensePlate
+      vehicleType
       isDefault
+      isActive
+      notes
+      createdAt
+      updatedAt
+    }
+  }
+`;
+export const GET_VEHICLE_BY_ID = gql`
+  query GetVehicleById($id: ID!) {
+    vehicle(id: $id) {
+      userId
+      make
+      model
+      year
+      color
+      licensePlate
+      vehicleType
+      isDefault
+      isActive
+      notes
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -320,11 +386,7 @@ export const CHECK_AVAILABILITY = gql`
 `;
 
 export const CALCULATE_PRICING = gql`
-  query CalculatePricing(
-    $endTime: String
-    $startTime: String
-    $parkingId: ID
-  ) {
+  query CalculatePricing($endTime: String, $startTime: String, $parkingId: ID) {
     calculatePricing(
       endTime: $endTime
       startTime: $startTime

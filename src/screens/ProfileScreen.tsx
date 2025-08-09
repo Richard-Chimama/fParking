@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,38 @@ import {
   Image,
   Alert,
 } from 'react-native';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { User, Vehicle } from '../types';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
+import { useVehicles } from '../hooks/useVehicles';
+import VehicleDetailsBottomSheet from '../components/VehicleDetailsBottomSheet';
+import VehicleFormBottomSheet, { VehicleFormData } from '../components/VehicleFormBottomSheet';
 
 const ProfileScreen: React.FC = () => {
   const theme = useTheme();
   const { user, signOut } = useAuth();
+  const {
+    vehicles,
+    loading,
+    addVehicle,
+    updateVehicle,
+    deleteVehicle,
+    setDefaultVehicle,
+    addingVehicle,
+    updatingVehicle,
+    deletingVehicle,
+    settingDefault,
+  } = useVehicles();
+  
+  // Bottom sheet refs
+  const vehicleDetailsBottomSheetRef = useRef<BottomSheet>(null);
+  const vehicleFormBottomSheetRef = useRef<BottomSheet>(null);
+  
+  // State for bottom sheets
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   
   // Fallback user data if not available from context
   const displayUser = user || {
@@ -27,29 +51,6 @@ const ProfileScreen: React.FC = () => {
     phoneNumber: '+1 (555) 123-4567',
     createdAt: '2024-01-01T00:00:00Z',
   };
-
-  const [vehicles] = useState<Vehicle[]>([
-    {
-      id: '1',
-      userId: '1',
-      make: 'Toyota',
-      model: 'Camry',
-      year: 2022,
-      color: 'Silver',
-      licensePlate: 'ABC123',
-      isDefault: true,
-    },
-    {
-      id: '2',
-      userId: '1',
-      make: 'Honda',
-      model: 'Civic',
-      year: 2020,
-      color: 'Blue',
-      licensePlate: 'XYZ789',
-      isDefault: false,
-    },
-  ]);
 
   const menuItems = [
     {
@@ -94,23 +95,92 @@ const ProfileScreen: React.FC = () => {
   };
 
   const handleAddVehicle = () => {
-    console.log('Add Vehicle');
+    setEditingVehicle(null);
+    vehicleFormBottomSheetRef.current?.expand();
   };
 
   const handleVehiclePress = (vehicle: Vehicle) => {
-    Alert.alert(
-      vehicle.make + ' ' + vehicle.model,
-      `${vehicle.year} ${vehicle.color}\nLicense: ${vehicle.licensePlate}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Edit', onPress: () => console.log('Edit vehicle:', vehicle.id) },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => console.log('Delete vehicle:', vehicle.id),
-        },
-      ]
-    );
+    setSelectedVehicle(vehicle);
+    vehicleDetailsBottomSheetRef.current?.expand();
+  };
+
+  const handleEditVehicle = (vehicle: Vehicle) => {
+    vehicleDetailsBottomSheetRef.current?.close();
+    setEditingVehicle(vehicle);
+    setTimeout(() => {
+      vehicleFormBottomSheetRef.current?.expand();
+    }, 300);
+  };
+
+  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    try {
+      await deleteVehicle(vehicle.id);
+      vehicleDetailsBottomSheetRef.current?.close();
+      Alert.alert('Success', 'Vehicle deleted successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to delete vehicle');
+    }
+  };
+
+  const handleSetDefaultVehicle = async (vehicle: Vehicle) => {
+    try {
+      await setDefaultVehicle(vehicle.id);
+      vehicleDetailsBottomSheetRef.current?.close();
+      Alert.alert('Success', 'Default vehicle updated successfully');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to set default vehicle');
+    }
+  };
+
+  const handleVehicleFormSubmit = async (formData: VehicleFormData) => {
+    console.log('🚗 Vehicle form submitted with data:', formData);
+    
+    try {
+      const vehicleData = {
+        make: formData.make,
+        model: formData.model,
+        year: parseInt(formData.year),
+        color: formData.color,
+        licensePlate: formData.licensePlate,
+        vehicleType: formData.vehicleType,
+        isDefault: vehicles.length === 0, // Set as default if it's the first vehicle
+      };
+      
+      console.log('🔧 Processed vehicle data:', vehicleData);
+      console.log('📊 Current vehicles count:', vehicles.length);
+
+      if (editingVehicle) {
+        console.log('✏️ Updating existing vehicle:', editingVehicle.id);
+        await updateVehicle(editingVehicle.id, vehicleData);
+        console.log('✅ Vehicle updated successfully');
+        Alert.alert('Success', 'Vehicle updated successfully');
+      } else {
+        console.log('➕ Adding new vehicle');
+        const result = await addVehicle(vehicleData);
+        console.log('✅ Vehicle added successfully:', result);
+        Alert.alert('Success', 'Vehicle added successfully');
+      }
+      
+      vehicleFormBottomSheetRef.current?.close();
+      setEditingVehicle(null);
+    } catch (error: any) {
+      console.error('❌ Vehicle save error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        graphQLErrors: error.graphQLErrors,
+        networkError: error.networkError,
+        stack: error.stack
+      });
+      Alert.alert('Error', error.message || 'Failed to save vehicle');
+    }
+  };
+
+  const handleCloseVehicleDetails = () => {
+    setSelectedVehicle(null);
+  };
+
+  const handleCloseVehicleForm = () => {
+    setEditingVehicle(null);
   };
 
   const handleSignOut = () => {
@@ -181,35 +251,51 @@ const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>My Vehicles</Text>
-            <TouchableOpacity onPress={handleAddVehicle}>
-              <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
+            <TouchableOpacity onPress={handleAddVehicle} disabled={addingVehicle}>
+              <Ionicons 
+                name={addingVehicle ? "hourglass-outline" : "add-circle-outline"} 
+                size={24} 
+                color={addingVehicle ? "#CCC" : "#007AFF"} 
+              />
             </TouchableOpacity>
           </View>
-          {vehicles.map((vehicle) => (
-            <TouchableOpacity
-              key={vehicle.id}
-              style={styles.vehicleCard}
-              onPress={() => handleVehiclePress(vehicle)}
-            >
-              <View style={styles.vehicleIcon}>
-                <Ionicons name="car" size={24} color="#007AFF" />
-              </View>
-              <View style={styles.vehicleInfo}>
-                <Text style={styles.vehicleName}>
-                  {vehicle.year} {vehicle.make} {vehicle.model}
-                </Text>
-                <Text style={styles.vehicleDetails}>
-                  {vehicle.color} • {vehicle.licensePlate}
-                </Text>
-              </View>
-              {vehicle.isDefault && (
-                <View style={styles.defaultBadge}>
-                  <Text style={styles.defaultText}>Default</Text>
+          {loading && vehicles.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading vehicles...</Text>
+            </View>
+          ) : (
+            vehicles.map((vehicle) => (
+              <TouchableOpacity
+                key={vehicle.id}
+                style={styles.vehicleCard}
+                onPress={() => handleVehiclePress(vehicle)}
+              >
+                <View style={styles.vehicleIcon}>
+                  <Ionicons name="car" size={24} color="#007AFF" />
                 </View>
-              )}
-              <Ionicons name="chevron-forward" size={20} color="#CCC" />
-            </TouchableOpacity>
-          ))}
+                <View style={styles.vehicleInfo}>
+                  <Text style={styles.vehicleName}>
+                    {vehicle.year} {vehicle.make} {vehicle.model}
+                  </Text>
+                  <Text style={styles.vehicleDetails}>
+                    {vehicle.color} • {vehicle.licensePlate}
+                  </Text>
+                </View>
+                {vehicle.isDefault && (
+                  <View style={styles.defaultBadge}>
+                    <Text style={styles.defaultText}>Default</Text>
+                  </View>
+                )}
+                <Ionicons name="chevron-forward" size={20} color="#CCC" />
+              </TouchableOpacity>
+            ))
+          )}
+          {!loading && vehicles.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No vehicles added yet</Text>
+              <Text style={styles.emptySubtext}>Tap the + button to add your first vehicle</Text>
+            </View>
+          )}
         </View>
 
         {/* Menu Items */}
@@ -241,6 +327,25 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.versionText}>Version 1.0.0</Text>
         </View>
       </ScrollView>
+
+      {/* Bottom Sheets */}
+      <VehicleDetailsBottomSheet
+        ref={vehicleDetailsBottomSheetRef}
+        vehicle={selectedVehicle}
+        onEdit={handleEditVehicle}
+        onDelete={handleDeleteVehicle}
+        onSetDefault={handleSetDefaultVehicle}
+        onClose={handleCloseVehicleDetails}
+        loading={deletingVehicle || settingDefault}
+      />
+
+      <VehicleFormBottomSheet
+        ref={vehicleFormBottomSheetRef}
+        vehicle={editingVehicle}
+        onSubmit={handleVehicleFormSubmit}
+        onClose={handleCloseVehicleForm}
+        loading={addingVehicle || updatingVehicle}
+      />
     </SafeAreaView>
   );
 };
@@ -433,6 +538,29 @@ const createStyles = (theme: any) => StyleSheet.create({
   versionText: {
     fontSize: theme.typography.sizes.sm,
     color: theme.colors.textTertiary,
+  },
+  loadingContainer: {
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: theme.typography.sizes.md,
+    color: theme.colors.textSecondary,
+  },
+  emptyContainer: {
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: theme.typography.sizes.md,
+    fontWeight: theme.typography.weights.semiBold,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
+  },
+  emptySubtext: {
+    fontSize: theme.typography.sizes.sm,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 });
 

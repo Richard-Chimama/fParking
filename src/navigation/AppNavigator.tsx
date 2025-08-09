@@ -151,6 +151,7 @@ const AppNavigator: React.FC = () => {
               ),
             }}
           />
+    
           <Drawer.Screen 
             name="Logout" 
             component={LogoutComponent} 

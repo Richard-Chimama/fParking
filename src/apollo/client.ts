@@ -16,7 +16,7 @@ const httpLink = createHttpLink({
   uri: appConfig.graphqlEndpoint,
 });
 
-// Error link to handle network errors gracefully
+// Error link to handle network errors and authentication errors
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (networkError) {
     console.log(`[Network error]: ${networkError}`);
@@ -25,23 +25,31 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
   }
   
   if (graphQLErrors) {
-    graphQLErrors.map(({ message, locations, path }) =>
+    for (let err of graphQLErrors) {
       console.log(
-        `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-      )
-    );
+        `[GraphQL error]: Message: ${err.message}, Location: ${err.locations}, Path: ${err.path}`
+      );
+      
+      // Handle authentication errors
+      if (err.extensions?.code === 'UNAUTHENTICATED' || err.extensions?.code === 'FIREBASE_TOKEN_EXPIRED') {
+        // Clear expired Firebase token
+        AsyncStorage.removeItem('firebaseToken');
+        // Note: Token refresh should be handled by Firebase SDK automatically
+        // The AuthContext will handle re-authentication if needed
+      }
+    }
   }
 });
 
-// Auth link for adding authorization headers
+// Auth link for adding authorization headers with Firebase ID token
 const authLink = setContext(async (_, { headers }) => {
-  // Get the authentication token from local storage if it exists
-  const token = await AsyncStorage.getItem('authToken');
+  // Get the Firebase ID token from local storage if it exists
+  const firebaseToken = await AsyncStorage.getItem('firebaseToken');
   
   return {
     headers: {
       ...headers,
-      authorization: token ? `Bearer ${token}` : "",
+      authorization: firebaseToken ? `Bearer ${firebaseToken}` : "",
     }
   };
 });
